@@ -99,13 +99,41 @@ def delete_cloud_builder(name, ova_url, folder_ref, network_ref, ip):
         json.dump(a_dict, outfile)
     result=subprocess.Popen(['/bin/bash', 'ncb.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
 
+# Helper function to create sddc
+def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
+    folder='/nested-vcf/04_create_sddc'
+    a_dict = {}
+    a_dict['operation'] = "apply"
+    a_dict['vcenter']['ip'] = ip
+    a_dict['vcenter']['hostname'] = hostname
+    a_dict['vcenter']['license'] = license
+    a_dict['vcenter']['vmSize'] = vmSize
+    a_dict['vcenter']['storageSize'] = storageSize
+    a_dict['vcenter']['ssoDomain'] = ssoDomain
+    json_file='/root/sddc-tmp.json'
+    with open(json_file, 'w') as outfile:
+        json.dump(a_dict, outfile)
+    result=subprocess.Popen(['/bin/bash', 'sddc.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
 
+# Helper function to create sddc
+def delete_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
+    folder='/nested-vcf/04_create_sddc'
+    a_dict = {}
+    a_dict['operation'] = "destroy"
+    a_dict['vcenter']['ip'] = ip
+    a_dict['vcenter']['hostname'] = hostname
+    a_dict['vcenter']['license'] = license
+    a_dict['vcenter']['vmSize'] = vmSize
+    a_dict['vcenter']['storageSize'] = storageSize
+    a_dict['vcenter']['ssoDomain'] = ssoDomain
+    json_file='/root/sddc-tmp.json'
+    with open(json_file, 'w') as outfile:
+        json.dump(a_dict, outfile)
+    result=subprocess.Popen(['/bin/bash', 'sddc.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
 #
 #
 #
 #
-
-
 @kopf.on.create('vsphere-folders')
 def on_create(spec, **kwargs):
     name = spec.get('name')
@@ -163,8 +191,6 @@ def on_create(spec, **kwargs):
     folder_ref = spec.get('folder_ref')
     network_ref = spec.get('network_ref')
     ip = spec.get('ip')
-    dns_servers = spec.get('dns_servers')
-    ntp_servers = spec.get('ntp_servers')
     try:
         create_cloud_builder(name, ova_url, folder_ref, network_ref, ip)
     except requests.RequestException as e:
@@ -177,9 +203,33 @@ def on_delete(spec, **kwargs):
     folder_ref = spec.get('folder_ref')
     network_ref = spec.get('network_ref')
     ip = spec.get('ip')
-    dns_servers = spec.get('dns_servers')
-    ntp_servers = spec.get('ntp_servers')
     try:
         delete_cloud_builder(name, ova_url, folder_ref, network_ref, ip)
+    except requests.RequestException as e:
+        raise kopf.PermanentError(f'Failed to delete external resource: {e}')
+
+@kopf.on.create('sddcs')
+def on_create(spec, **kwargs):
+    ip = spec.vcenter.get('ip')
+    hostname = spec.vcenter.get('hostname')
+    license = spec.vcenter.get('license')
+    vmSize = spec.vcenter.get('vmSize')
+    storageSize = spec.vcenter.get('storageSize')
+    ssoDomain = spec.vcenter.get('ssoDomain')
+    try:
+        create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
+    except requests.RequestException as e:
+        raise kopf.PermanentError(f'Failed to create external resource: {e}')
+
+@kopf.on.delete('sddc')
+def on_delete(spec, **kwargs):
+    ip = spec.vcenter.get('ip')
+    hostname = spec.vcenter.get('hostname')
+    license = spec.vcenter.get('license')
+    vmSize = spec.vcenter.get('vmSize')
+    storageSize = spec.vcenter.get('storageSize')
+    ssoDomain = spec.vcenter.get('ssoDomain')
+    try:
+        delete_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to delete external resource: {e}')

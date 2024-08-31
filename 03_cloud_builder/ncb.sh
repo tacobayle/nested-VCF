@@ -140,6 +140,11 @@ if [[ ${vm} == 0 ]] ; then
       fi
     done
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+  #
+  # json creation
+  #
+  json_data="{}"
+
   fi
   #
   if [[ ${operation} == "destroy" ]] ; then
