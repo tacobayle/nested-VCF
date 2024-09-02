@@ -64,7 +64,7 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${gateway}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)/" /nested-vcf/02_esxi/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
     echo "Building new ISO for ESXi ${esxi}"
     xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
-    govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" isos/$(basename ${iso_location}-${esxi}.iso)
+    govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" test20240902/$(basename ${iso_location}-${esxi}.iso)
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXi '${esxi}' uploaded "}' ${slack_webhook_url} >/dev/null 2>&1; fi
     cpu=$(jq -c -r .cpu $jsonFile)
     memory=$(jq -c -r .memory $jsonFile)
@@ -75,7 +75,7 @@ if [[ ${operation} == "apply" ]] ; then
     name="$(jq -c -r .basename $jsonFile)${esxi}"
     govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder_ref}" -on=false "${name}"
     govc device.cdrom.add -vm "${folder_ref}/${name}"
-    govc device.cdrom.insert -vm "${folder_ref}/${name}" -device cdrom-3000 isos/$(basename ${iso_location}-${esxi}.iso)
+    govc device.cdrom.insert -vm "${folder_ref}/${name}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso)
     govc vm.change -vm "${folder_ref}/${name}" -nested-hv-enabled
     govc vm.disk.create -vm "${folder_ref}/${name}" -name disk_flash_size/disk1 -size ${disk_flash_size}
     govc vm.disk.create -vm "${folder_ref}/${name}" -name disk_capacity_size/disk2 -size ${disk_capacity_size}
