@@ -77,8 +77,8 @@ if [[ ${operation} == "apply" ]] ; then
     govc device.cdrom.add -vm "${folder_ref}/${name}"
     govc device.cdrom.insert -vm "${folder_ref}/${name}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso)
     govc vm.change -vm "${folder_ref}/${name}" -nested-hv-enabled
-    govc vm.disk.create -vm "${folder_ref}/${name}" -name disk_flash_size/disk1 -size ${disk_flash_size}
-    govc vm.disk.create -vm "${folder_ref}/${name}" -name disk_capacity_size/disk2 -size ${disk_capacity_size}
+    govc vm.disk.create -vm "${folder_ref}/${name}" -name ${name}/disk1 -size ${disk_flash_size}
+    govc vm.disk.create -vm "${folder_ref}/${name}" -name ${name}/disk2 -size ${disk_capacity_size}
     govc vm.network.add -vm "${folder_ref}/${name}" -net ${net} -net.adapter vmxnet3
     govc vm.power -on=true "${folder_ref}/${name}"
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
@@ -90,7 +90,7 @@ if [[ ${operation} == "apply" ]] ; then
     esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
     count=1
     names="${names} ${name}"
-    until $(curl --output /dev/null --silent --head -k https://${esx_ip})
+    until $(curl --output /dev/null --silent --head -k https://${esxi_ip})
     do
       echo "Attempt ${count}: Waiting for ESXi host ${esxi} at https://${esxi_ip} to be reachable..."
       sleep 30
