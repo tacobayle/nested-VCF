@@ -120,4 +120,5 @@ if [[ ${operation} == "destroy" ]] ; then
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
     fi
   done
+  govc cluster.rule.remove -name "$(jq -c -r .basename $jsonFile)-affinity-rule"
 fi
