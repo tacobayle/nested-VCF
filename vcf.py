@@ -144,18 +144,16 @@ def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.Popen(['/bin/bash', 'sddc.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
+    if os.path.isfile("/root/sddc_esxi.error"):
+      logging.error("SDDC creation: ESXi seems not created)
+      raise ValueError("SDDC creation: ESXi seems not created)
 
-# Helper function to create sddc
-def delete_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
+
+# Helper function to delete sddc
+def delete_sddc():
     folder='/nested-vcf/04_create_sddc'
     a_dict = {}
     a_dict['operation'] = "destroy"
-    a_dict['vcenter']['ip'] = ip
-    a_dict['vcenter']['hostname'] = hostname
-    a_dict['vcenter']['license'] = license
-    a_dict['vcenter']['vmSize'] = vmSize
-    a_dict['vcenter']['storageSize'] = storageSize
-    a_dict['vcenter']['ssoDomain'] = ssoDomain
     json_file='/root/sddc-tmp.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
@@ -241,27 +239,19 @@ def on_delete(spec, **kwargs):
 @kopf.on.create('sddcs')
 def on_create(body, **kwargs):
     ip = body['spec']['vcenter']['ip']
-#     hostname = spec.vcenter.get('hostname')
-#     license = spec.vcenter.get('license')
-#     vmSize = spec.vcenter.get('vmSize')
-#     storageSize = spec.vcenter.get('storageSize')
-#     ssoDomain = spec.vcenter.get('ssoDomain')
-    logging.info("IP {0}".format(ip))
-
-#     try:
-#         create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
-#     except requests.RequestException as e:
-#         raise kopf.PermanentError(f'Failed to create external resource: {e}')
+    hostname = body['spec']['vcenter']['hostname']
+    license = body['spec']['vcenter']['license']
+    vmSize = body['spec']['vcenter']['vmSize']
+    storageSize = body['spec']['vcenter']['storageSize']
+    ssoDomain = body['spec']['vcenter']['ssoDomain']
+    try:
+        create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
+    except requests.RequestException as e:
+        raise kopf.PermanentError(f'Failed to create external resource: {e}')
 
 @kopf.on.delete('sddc')
-def on_delete(spec, **kwargs):
-    ip = spec.vcenter.get('ip')
-    hostname = spec.vcenter.get('hostname')
-    license = spec.vcenter.get('license')
-    vmSize = spec.vcenter.get('vmSize')
-    storageSize = spec.vcenter.get('storageSize')
-    ssoDomain = spec.vcenter.get('ssoDomain')
-#     try:
-#         delete_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
-#     except requests.RequestException as e:
-#         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
+def on_delete(body, **kwargs):
+    try:
+        delete_sddc()
+    except requests.RequestException as e:
+        raise kopf.PermanentError(f'Failed to delete external resource: {e}')
