@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+rm -f /root/govc_esxi.error
+rm -f /root/govc_esxi_folder_not_present.error
 source /nested-vcf/bash/download_file.sh
 source /nested-vcf/bash/ip.sh
 #
@@ -20,14 +22,18 @@ if [[ ${operation} == "apply" ]] ; then log_file="/nested-vcf/log/$(basename "$0
 if [[ ${operation} == "destroy" ]] ; then log_file="/nested-vcf/log/$(basename "$0" | cut -f1 -d'.')_${operation}.stdout" ; fi
 if [[ ${operation} != "apply" && ${operation} != "destroy" ]] ; then echo "ERROR: Unsupported operation" ; exit 255 ; fi
 #
+rm -f ${log_file}
+#
 basename=$(jq -c -r .basename $jsonFile)
 ips=$(jq -c -r .ips $jsonFile)
 #
 source /nested-vcf/bash/govc/load_govc_external.sh
+govc about
+if [ $? -ne 0 ] ; then touch /root/govc_esxi.error ; fi
 ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
 dc=$(jq -c -r .vsphere_underlay.datacenter $jsonFile)
 folder_ref=$(jq -c -r .folder_ref $jsonFile)
-
+#
 if [[ ${operation} == "apply" ]] ; then
   iso_url=$(jq -c -r .iso_url $jsonFile)
   download_file_from_url_to_location "${iso_url}" "/root/$(basename ${iso_url})" "ESXi ISO"
@@ -47,6 +53,25 @@ if [[ ${operation} == "apply" ]] ; then
   echo "Modifying ${iso_build_location}/${boot_cfg_location}"
   echo "kernelopt=runweasel ks=cdrom:/KS_CUST.CFG" | tee -a ${iso_build_location}/${boot_cfg_location}
   hostSpecs="[]"
+  # folder check
+  retry=5
+  pause=5
+  attempt=0
+  while true ; do
+    echo "attempt $attempt to verify vSphere folder called ${folder_ref} is present" | tee -a ${log_file}
+    list_folder=$(govc find -json . -type f)
+    if $(echo ${list_folder} | jq -e '. | any(. == "./vm/'${folder_ref}'")' >/dev/null ) ; then
+      break
+    fi
+    ((attempt++))
+    if [ $attempt -eq $retry ]; then
+      echo "vSphere folder not present after $attempt attempt" | tee -a ${log_file}
+      touch /root/govc_esxi_folder_not_present.error
+      exit
+    fi
+    sleep $pause
+  done
+  #
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
     esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])

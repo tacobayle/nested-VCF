@@ -1,5 +1,8 @@
 #!/bin/bash
 #
+rm -f /root/govc_folder.error
+rm -f /root/govc_folder_create_already_exist.error
+rm -f /root/govc_folder_destroy_not_exist.error
 jsonFile="/root/$(basename "$0" | cut -f1 -d'.').json"
 jsonFile1="${1}"
 if [ -s "${jsonFile1}" ]; then
@@ -18,6 +21,8 @@ if [[ ${operation} == "apply" ]] ; then log_file="/nested-vcf/log/$(basename "$0
 if [[ ${operation} == "destroy" ]] ; then log_file="/nested-vcf/log/$(basename "$0" | cut -f1 -d'.')_${operation}.stdout" ; fi
 if [[ ${operation} != "apply" && ${operation} != "destroy" ]] ; then echo "ERROR: Unsupported operation" ; exit 255 ; fi
 #
+rm -f ${log_file}
+#
 folder_name=$(jq -c -r .name $jsonFile)
 #
 echo '------------------------------------------------------------' | tee ${log_file}
@@ -29,11 +34,14 @@ if [[ ${operation} == "destroy" ]] ; then
 fi
 echo "Starting timestamp: $(date)" | tee -a ${log_file}
 source /nested-vcf/bash/govc/load_govc_external.sh
+govc about
+if [ $? -ne 0 ] ; then touch /root/govc_folder.error ; fi
 list_folder=$(govc find -json . -type f)
 if $(echo ${list_folder} | jq -e '. | any(. == "./vm/'${folder_name}'")' >/dev/null ) ; then
   if [[ ${operation} == "apply" ]] ; then
     echo "ERROR: unable to create folder ${folder_name}: it already exists" | tee -a ${log_file}
-    exit 255
+    touch /root/govc_folder_create_already_exist.error
+    exit
   fi
   if [[ ${operation} == "destroy" ]] ; then
     govc object.destroy /${vsphere_dc}/vm/${folder_name} | tee -a ${log_file}
@@ -46,7 +54,8 @@ else
   fi
   if [[ ${operation} == "destroy" ]] ; then
     echo "ERROR: unable to delete folder ${folder_name}: it does not exist" | tee -a ${log_file}
-    exit 255
+    touch /root/govc_folder_destroy_not_exist.error
+    exit
   fi
 fi
 echo "Ending timestamp: $(date)" | tee -a ${log_file}
