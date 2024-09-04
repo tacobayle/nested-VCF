@@ -240,7 +240,7 @@ def on_delete(spec, **kwargs):
 
 @kopf.on.create('sddcs')
 def on_create(spec, **kwargs):
-    ip = spec.get('vcenter.ip')
+    ip = spec.vcenter.get('ip')
 #     hostname = spec.vcenter.get('hostname')
 #     license = spec.vcenter.get('license')
 #     vmSize = spec.vcenter.get('vmSize')
