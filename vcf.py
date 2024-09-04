@@ -240,16 +240,18 @@ def on_delete(spec, **kwargs):
 
 @kopf.on.create('sddcs')
 def on_create(spec, **kwargs):
-    ip = spec.vcenter.get('ip')
-    hostname = spec.vcenter.get('hostname')
-    license = spec.vcenter.get('license')
-    vmSize = spec.vcenter.get('vmSize')
-    storageSize = spec.vcenter.get('storageSize')
-    ssoDomain = spec.vcenter.get('ssoDomain')
-    try:
-        create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
-    except requests.RequestException as e:
-        raise kopf.PermanentError(f'Failed to create external resource: {e}')
+    ip = spec.get('vcenter.ip')
+#     hostname = spec.vcenter.get('hostname')
+#     license = spec.vcenter.get('license')
+#     vmSize = spec.vcenter.get('vmSize')
+#     storageSize = spec.vcenter.get('storageSize')
+#     ssoDomain = spec.vcenter.get('ssoDomain')
+    logging.info("IP {0}".format(ip))
+
+#     try:
+#         create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
+#     except requests.RequestException as e:
+#         raise kopf.PermanentError(f'Failed to create external resource: {e}')
 
 @kopf.on.delete('sddc')
 def on_delete(spec, **kwargs):
@@ -259,7 +261,7 @@ def on_delete(spec, **kwargs):
     vmSize = spec.vcenter.get('vmSize')
     storageSize = spec.vcenter.get('storageSize')
     ssoDomain = spec.vcenter.get('ssoDomain')
-    try:
-        delete_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
-    except requests.RequestException as e:
-        raise kopf.PermanentError(f'Failed to delete external resource: {e}')
+#     try:
+#         delete_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
+#     except requests.RequestException as e:
+#         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
