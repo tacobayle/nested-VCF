@@ -239,8 +239,8 @@ def on_delete(spec, **kwargs):
         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
 
 @kopf.on.create('sddcs')
-def on_create(spec, **kwargs):
-    ip = spec.get(['vcenter']['ip'])
+def on_create(body, **kwargs):
+    ip = body['spec']['vcenter']['ip']
 #     hostname = spec.vcenter.get('hostname')
 #     license = spec.vcenter.get('license')
 #     vmSize = spec.vcenter.get('vmSize')
