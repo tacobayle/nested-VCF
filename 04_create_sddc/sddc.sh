@@ -41,6 +41,16 @@ if [[ ${operation} == "apply" ]] ; then
   folder_ref=$(jq -c -r .folder_ref /root/esxi.json)
   vcenter_json='
   {
+    "vsanSpec":
+    {
+      "licenseFile": '$(jq .vsan.license ${jsonFile})',
+      "vsanDedup": "false",
+      "esaConfig":
+      {
+        "enabled": false
+      },
+      "datastoreName": "'${folder_ref}'-vsan"
+    },
     "clusterSpec":
     {
       "clusterName": "'${folder_ref}'-cluster",

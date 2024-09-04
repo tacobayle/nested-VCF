@@ -130,7 +130,7 @@ def delete_cloud_builder(name, ova_url, folder_ref, network_ref, ip):
     result=subprocess.Popen(['/bin/bash', 'ncb.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
 
 # Helper function to create sddc
-def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
+def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain, vSanLicense):
     folder='/nested-vcf/04_create_sddc'
     a_dict = {}
     a_dict['operation'] = "apply"
@@ -141,6 +141,8 @@ def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
     a_dict['vcenter']['vmSize'] = vmSize
     a_dict['vcenter']['storageSize'] = storageSize
     a_dict['vcenter']['ssoDomain'] = ssoDomain
+    a_dict['vsan'] = {}
+    a_dict['vsan']['license'] = vSanLicense
     json_file='/root/sddc-tmp.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
@@ -245,8 +247,9 @@ def on_create(body, **kwargs):
     vmSize = body['spec']['vcenter']['vmSize']
     storageSize = body['spec']['vcenter']['storageSize']
     ssoDomain = body['spec']['vcenter']['ssoDomain']
+    vSanLicense = body['spec']['vsan']['license']
     try:
-        create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain)
+        create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain, vSanLicense)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to create external resource: {e}')
 
