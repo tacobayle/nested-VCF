@@ -39,24 +39,26 @@ if [[ ${operation} == "apply" ]] ; then
     sleep $pause
   done
   vcenter_json='
-  "pscSpecs":
-  [
-    {
-      "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
-      "pscSsoSpec":
-      {
-        "ssoDomain": "'$(jq .vcenter.ssoDomain ${jsonFile})'"
-      }
-    }
-  ],
-  "vcenterSpec":
   {
-    "vcenterIp": "'$(jq .vcenter.ip ${jsonFile})'",
-    "vcenterHostname": "'$(jq .vcenter.hostname ${jsonFile})'",
-    "licenseFile": "'$(jq .vcenter.license ${jsonFile})'",
-    "vmSize": "'$(jq .vcenter.vmSize ${jsonFile})'",
-    "storageSize": "'$(jq .vcenter.storageSize ${jsonFile})'",
-    "rootVcenterPassword": "'${NESTED_VCENTER_PASSWORD}'"
+    "pscSpecs":
+      [
+        {
+          "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
+          "pscSsoSpec":
+        {
+          "ssoDomain": '$(jq .vcenter.ssoDomain ${jsonFile})'
+        }
+      }
+    ],
+    "vcenterSpec":
+    {
+      "vcenterIp": '$(jq .vcenter.ip ${jsonFile})',
+      "vcenterHostname": '$(jq .vcenter.hostname ${jsonFile})',
+      "licenseFile": '$(jq .vcenter.license ${jsonFile})',
+      "vmSize": '$(jq .vcenter.vmSize ${jsonFile})',
+      "storageSize": '$(jq .vcenter.storageSize ${jsonFile})',
+      "rootVcenterPassword": "'${NESTED_VCENTER_PASSWORD}'"
+    }
   }'
   echo ${vcenter_json} | jq . -c -r | tee /root/vcenter.json
 fi
