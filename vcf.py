@@ -3,6 +3,9 @@ import requests
 import subprocess
 import json
 from kubernetes import client, config
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # Load the Kubernetes configuration
 config.load_incluster_config()
@@ -17,6 +20,7 @@ def create_vsphere_folder(name):
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.call(['/bin/bash', 'folder.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
+    logging.info("folder creation")
 
 # Helper function to delete vsphere folder
 def delete_vsphere_folder(name):
@@ -28,6 +32,7 @@ def delete_vsphere_folder(name):
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.call(['/bin/bash', 'folder.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
+    logging.info("folder deletion")
 
 # Helper function to create esxi group
 def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size):
@@ -68,7 +73,7 @@ def delete_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.call(['/bin/bash', 'esxi.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
-    print("test_log_nic")
+    kopf.info('test_nic')
 
 # Helper function to create cloud builder VM
 def create_cloud_builder(name, ova_url, folder_ref, network_ref, ip):
