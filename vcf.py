@@ -68,6 +68,7 @@ def delete_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.call(['/bin/bash', 'esxi.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
+    print("test_log_nic")
 
 # Helper function to create cloud builder VM
 def create_cloud_builder(name, ova_url, folder_ref, network_ref, ip):
