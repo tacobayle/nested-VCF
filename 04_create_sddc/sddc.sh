@@ -58,7 +58,8 @@ if [[ ${operation} == "apply" ]] ; then
       "vmSize": '$(jq .vcenter.vmSize ${jsonFile})',
       "storageSize": '$(jq .vcenter.storageSize ${jsonFile})',
       "rootVcenterPassword": "'${NESTED_VCENTER_PASSWORD}'"
-    }
+    },
+    "hostSpecs": '$(jq -c -r . /root/hostSpecs.json)'
   }'
   echo ${vcenter_json} | jq . -c -r | tee /root/vcenter.json
 fi
