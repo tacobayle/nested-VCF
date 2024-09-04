@@ -47,21 +47,21 @@ if [[ ${operation} == "apply" ]] ; then
       "clusterEvcMode": "",
       "clusterImageEnabled": true,
       "vmFolders":
-      {
-        "MANAGEMENT": "'${folder_ref}'-mgmt",
-        "NETWORKING": "'${folder_ref}'-nsx",
-        "EDGENODES": "'${folder_ref}'-edge",
-      }
+        {
+          "MANAGEMENT": "'${folder_ref}'-mgmt",
+          "NETWORKING": "'${folder_ref}'-nsx",
+          "EDGENODES": "'${folder_ref}'-edge"
+        }
     },
     "pscSpecs":
-      [
-        {
-          "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
-          "pscSsoSpec":
-        {
-          "ssoDomain": '$(jq .vcenter.ssoDomain ${jsonFile})'
-        }
+    [
+      {
+        "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
+        "pscSsoSpec":
+      {
+        "ssoDomain": '$(jq .vcenter.ssoDomain ${jsonFile})'
       }
+    }
     ],
     "vcenterSpec":
     {

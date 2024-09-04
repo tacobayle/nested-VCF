@@ -72,6 +72,7 @@ if [[ ${operation} == "apply" ]] ; then
     sleep $pause
   done
   #
+  names=""
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
     esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
@@ -98,6 +99,7 @@ if [[ ${operation} == "apply" ]] ; then
     disk_flash_size=$(jq -c -r .disk_flash_size $jsonFile)
     disk_capacity_size=$(jq -c -r .disk_capacity_size $jsonFile)
     name="$(jq -c -r .basename $jsonFile)${esxi}"
+    names="${names} ${name}"
     govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder_ref}" -on=false "${name}"
     govc device.cdrom.add -vm "${folder_ref}/${name}"
     govc device.cdrom.insert -vm "${folder_ref}/${name}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso)
@@ -108,13 +110,12 @@ if [[ ${operation} == "apply" ]] ; then
     govc vm.power -on=true "${folder_ref}/${name}"
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   done
+  govc cluster.rule.create -name "$(jq -c -r .folder_ref $jsonFile)-affinity-rule" -enable -affinity ${names}
   echo ${hostSpecs} | jq -c -r . | tee /root/hostSpecs.json
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
-    name="$(jq -c -r .basename $jsonFile)${esxi}"
     esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
     count=1
-    names="${names} ${name}"
     until $(curl --output /dev/null --silent --head -k https://${esxi_ip})
     do
       echo "Attempt ${count}: Waiting for ESXi host ${esxi} at https://${esxi_ip} to be reachable..."
@@ -131,7 +132,6 @@ if [[ ${operation} == "apply" ]] ; then
     /root/cert-esxi-$esxi.expect
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' configured and reachable with renewed cert"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   done
-  govc cluster.rule.create -name "$(jq -c -r .basename $jsonFile)-affinity-rule" -enable -affinity ${names}
 fi
 #
 if [[ ${operation} == "destroy" ]] ; then
@@ -145,5 +145,5 @@ if [[ ${operation} == "destroy" ]] ; then
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
     fi
   done
-  govc cluster.rule.remove -name "$(jq -c -r .basename $jsonFile)-affinity-rule"
+  govc cluster.rule.remove -name "$(jq -c -r .folder_ref $jsonFile)-affinity-rule"
 fi
