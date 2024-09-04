@@ -75,7 +75,7 @@ if [[ ${operation} == "apply" ]] ; then
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
     esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-    hostSpec='{"association":"'${basename}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${NESTED_ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+    hostSpec='{"association":"'${folder_ref}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${NESTED_ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
     hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
     echo "Building custom ESXi ISO for ESXi${esxi}"
     rm -f ${iso_build_location}/ks_cust.cfg

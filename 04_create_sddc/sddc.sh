@@ -38,8 +38,21 @@ if [[ ${operation} == "apply" ]] ; then
     fi
     sleep $pause
   done
+  folder_ref=$(jq -c -r .folder_ref /root/esxi.json)
   vcenter_json='
   {
+    "clusterSpec":
+    {
+      "clusterName": "'${folder_ref}'-cluster",
+      "clusterEvcMode": "",
+      "clusterImageEnabled": true,
+      "vmFolders":
+      {
+        "MANAGEMENT": "'${folder_ref}'-mgmt",
+        "NETWORKING": "'${folder_ref}'-nsx",
+        "EDGENODES": "'${folder_ref}'-edge",
+      }
+    },
     "pscSpecs":
       [
         {
