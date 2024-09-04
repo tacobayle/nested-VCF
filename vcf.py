@@ -27,10 +27,10 @@ def create_vsphere_folder(name):
     result=subprocess.call(['/bin/bash', 'folder.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
     if os.path.isfile("/root/govc_folder.error"):
       logging.error("vCenter folder {0} creation: vCenter connectivity issue".format(name))
-      raise ValueError("vCenter folder {0} creation: vCenter connectivity issue".format(name))
+      raise ValueError("vCenter folder creation: vCenter connectivity issue")
     if os.path.isfile("/root/govc_folder_create_already_exist.error"):
       logging.error("vCenter folder {0} creation: Unable to create, folder already exists".format(name))
-      raise ValueError("vCenter folder {0} creation: Unable to create, folder already exists".format(name))
+      raise ValueError("vCenter folder creation: Unable to create, folder already exists")
 
 # Helper function to delete vsphere folder
 def delete_vsphere_folder(name):
@@ -44,10 +44,10 @@ def delete_vsphere_folder(name):
     result=subprocess.call(['/bin/bash', 'folder.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
     if os.path.isfile("/root/govc_folder.error"):
       logging.error("vCenter folder {0} deletion: vCenter connectivity issue".format(name))
-      raise ValueError("vCenter folder {0} deletion: vCenter connectivity issue".format(name))
+      raise ValueError("vCenter folder deletion: vCenter connectivity issue")
     if os.path.isfile("/root/govc_folder_destroy_not_exist.error"):
       logging.error("vCenter folder {0} deletion: Unable to delete, folder does not exist".format(name))
-      raise ValueError("vCenter folder {0} deletion: Unable to delete, folder does not exist".format(name))
+      raise ValueError("vCenter folder deletion: Unable to delete, folder does not exist")
 
 # Helper function to create esxi group
 def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size):
@@ -70,10 +70,10 @@ def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
     result=subprocess.call(['/bin/bash', 'esxi.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
     if os.path.isfile("/root/govc_esxi.error"):
       logging.error("ESXi {0} creation: vCenter connectivity issue".format(basename))
-      raise ValueError("ESXi {0} creation: vCenter connectivity issue".format(basename))
+      raise ValueError("ESXi creation: vCenter connectivity issue")
     if os.path.isfile("/root/govc_esxi_folder_not_present.error"):
       logging.error("ESXi {0} creation: vCenter folder not present".format(basename))
-      raise ValueError("ESXi {0} creation: vCenter folder not present".format(basename))
+      raise ValueError("ESXi creation: vCenter folder not present")
 
 # Helper function to delete esxi group
 def delete_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size):
@@ -96,7 +96,7 @@ def delete_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
     result=subprocess.call(['/bin/bash', 'esxi.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
     if os.path.isfile("/root/govc_esxi.error"):
       logging.error("ESXi {0} deletion: vCenter connectivity issue".format(basename))
-      raise ValueError("ESXi {0} deletion: vCenter connectivity issue".format(basename))
+      raise ValueError("ESXi deletion: vCenter connectivity issue")
 
 
 # Helper function to create cloud builder VM
