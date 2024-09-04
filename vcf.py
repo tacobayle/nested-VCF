@@ -134,6 +134,7 @@ def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
     folder='/nested-vcf/04_create_sddc'
     a_dict = {}
     a_dict['operation'] = "apply"
+    a_dict['vcenter'] = {}
     a_dict['vcenter']['ip'] = ip
     a_dict['vcenter']['hostname'] = hostname
     a_dict['vcenter']['license'] = license
