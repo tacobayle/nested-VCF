@@ -145,8 +145,8 @@ def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain):
         json.dump(a_dict, outfile)
     result=subprocess.Popen(['/bin/bash', 'sddc.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
     if os.path.isfile("/root/sddc_esxi.error"):
-      logging.error("SDDC creation: ESXi seems not created)
-      raise ValueError("SDDC creation: ESXi seems not created)
+      logging.error("SDDC creation: ESXi seems not created")
+      raise ValueError("SDDC creation: ESXi seems not created")
 
 
 # Helper function to delete sddc
