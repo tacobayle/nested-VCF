@@ -86,8 +86,8 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${ip_mgmt}/${esxi_ip}/" \
         -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
         -e "s/\${vlan_id}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).vlan_id' $jsonFile)/" \
-        -e "s/\${dns_servers}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).dns_servers | join(",")' $jsonFile)/" \
-        -e "s/\${ntp_servers}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).ntp_servers | join(",")' $jsonFile)/" \
+        -e "s/\${dns_servers}/$(jq -c -r '.dns_servers | join(",")' $jsonFile)/" \
+        -e "s/\${ntp_servers}/$(jq -c -r '.ntp_servers | join(",")' $jsonFile)/" \
         -e "s/\${hostname}/${basename}${esxi}/" \
         -e "s/\${gateway}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)/" /nested-vcf/02_esxi/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
     echo "Building new ISO for ESXi ${esxi}"
