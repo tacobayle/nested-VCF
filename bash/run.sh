@@ -16,3 +16,6 @@ k apply -f 05_folder.yaml
 k apply -f 06_esxi.yaml
 k apply -f 07_ncb.yaml
 k apply -f 08_sddc.yaml
+
+
+kubectl delete -f 03-operator-nested-vcf.yaml --grace-period=0 ; kubectl apply -f 03-operator-nested-vcf.yaml
