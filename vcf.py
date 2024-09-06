@@ -50,7 +50,7 @@ def delete_vsphere_folder(name):
       raise ValueError("vCenter folder deletion: Unable to delete, folder does not exist")
 
 # Helper function to create esxi group
-def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size):
+def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size, dns_servers, ntp_servers):
     folder='/nested-vcf/02_esxi'
     a_dict = {}
     a_dict['operation'] = "apply"
@@ -64,6 +64,8 @@ def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
     a_dict['disk_os_size'] = disk_os_size
     a_dict['disk_flash_size'] = disk_flash_size
     a_dict['disk_capacity_size'] = disk_capacity_size
+    a_dict['dns_servers'] = dns_servers
+    a_dict['ntp_servers'] = ntp_servers
     json_file='/root/esxi-tmp.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
@@ -76,20 +78,13 @@ def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
       raise ValueError("ESXi creation: vCenter folder not present")
 
 # Helper function to delete esxi group
-def delete_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size):
+def delete_esxi_group(basename, folder_ref, ips):
     folder='/nested-vcf/02_esxi'
     a_dict = {}
     a_dict['operation'] = "destroy"
     a_dict['basename'] = basename
-    a_dict['iso_url'] = iso_url
     a_dict['folder_ref'] = folder_ref
-    a_dict['network_ref'] = network_ref
     a_dict['ips'] = ips
-    a_dict['cpu'] = cpu
-    a_dict['memory'] = memory
-    a_dict['disk_os_size'] = disk_os_size
-    a_dict['disk_flash_size'] = disk_flash_size
-    a_dict['disk_capacity_size'] = disk_capacity_size
     json_file='/root/esxi-tmp.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
@@ -100,7 +95,7 @@ def delete_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
 
 
 # Helper function to create cloud builder VM
-def create_cloud_builder(name, ova_url, folder_ref, network_ref, ip):
+def create_cloud_builder(name, ova_url, folder_ref, network_ref, ip, dns_servers, ntp_servers):
     folder='/nested-vcf/03_cloud_builder'
     a_dict = {}
     a_dict['operation'] = "apply"
@@ -109,21 +104,19 @@ def create_cloud_builder(name, ova_url, folder_ref, network_ref, ip):
     a_dict['folder_ref'] = folder_ref
     a_dict['network_ref'] = network_ref
     a_dict['ip'] = ip
+    a_dict['dns_servers'] = dns_servers
+    a_dict['ntp_servers'] = ntp_servers
     json_file='/root/ncb-tmp.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.Popen(['/bin/bash', 'ncb.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
 
 # Helper function to delete cloud builder VM
-def delete_cloud_builder(name, ova_url, folder_ref, network_ref, ip):
+def delete_cloud_builder(name):
     folder='/nested-vcf/03_cloud_builder'
     a_dict = {}
     a_dict['operation'] = "destroy"
     a_dict['name'] = name
-    a_dict['ova_url'] = ova_url
-    a_dict['folder_ref'] = folder_ref
-    a_dict['network_ref'] = network_ref
-    a_dict['ip'] = ip
     json_file='/root/ncb-tmp.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
@@ -193,25 +186,20 @@ def on_create(spec, **kwargs):
     disk_os_size = spec.get('disk_os_size')
     disk_flash_size = spec.get('disk_flash_size')
     disk_capacity_size = spec.get('disk_capacity_size')
+    dns_servers = spec.get('dns_servers')
+    ntp_servers = spec.get('ntp_servers')
     try:
-        create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size)
+        create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size, dns_servers, ntp_servers)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to create external resource: {e}')
 
 @kopf.on.delete('esxi-groups')
 def on_delete(spec, **kwargs):
     basename = spec.get('basename')
-    iso_url = spec.get('iso_url')
     folder_ref = spec.get('folder_ref')
-    network_ref = spec.get('network_ref')
     ips = spec.get('ips')
-    cpu = spec.get('cpu')
-    memory = spec.get('memory')
-    disk_os_size = spec.get('disk_os_size')
-    disk_flash_size = spec.get('disk_flash_size')
-    disk_capacity_size = spec.get('disk_capacity_size')
     try:
-        delete_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size)
+        delete_esxi_group(basename, folder_ref, ips)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
 
@@ -222,8 +210,10 @@ def on_create(spec, **kwargs):
     folder_ref = spec.get('folder_ref')
     network_ref = spec.get('network_ref')
     ip = spec.get('ip')
+    dns_servers = spec.get('dns_servers')
+    ntp_servers = spec.get('ntp_servers')
     try:
-        create_cloud_builder(name, ova_url, folder_ref, network_ref, ip)
+        create_cloud_builder(name, ova_url, folder_ref, network_ref, ip, dns_servers, ntp_servers)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to create external resource: {e}')
 
@@ -235,7 +225,7 @@ def on_delete(spec, **kwargs):
     network_ref = spec.get('network_ref')
     ip = spec.get('ip')
     try:
-        delete_cloud_builder(name, ova_url, folder_ref, network_ref, ip)
+        delete_cloud_builder(name)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
 
