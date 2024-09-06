@@ -50,7 +50,7 @@ def delete_vsphere_folder(name):
       raise ValueError("vCenter folder deletion: Unable to delete, folder does not exist")
 
 # Helper function to create esxi group
-def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size, dns_servers, ntp_servers):
+def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, nics, memory, disk_os_size, disk_flash_size, disk_capacity_size, dns_servers, ntp_servers):
     folder='/nested-vcf/02_esxi'
     a_dict = {}
     a_dict['operation'] = "apply"
@@ -60,6 +60,7 @@ def create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memo
     a_dict['network_ref'] = network_ref
     a_dict['ips'] = ips
     a_dict['cpu'] = cpu
+    a_dict['nics'] = nics
     a_dict['memory'] = memory
     a_dict['disk_os_size'] = disk_os_size
     a_dict['disk_flash_size'] = disk_flash_size
@@ -183,6 +184,7 @@ def on_create(spec, **kwargs):
     network_ref = spec.get('network_ref')
     ips = spec.get('ips')
     cpu = spec.get('cpu')
+    nics = spec.get('nics')
     memory = spec.get('memory')
     disk_os_size = spec.get('disk_os_size')
     disk_flash_size = spec.get('disk_flash_size')
@@ -190,7 +192,7 @@ def on_create(spec, **kwargs):
     dns_servers = spec.get('dns_servers')
     ntp_servers = spec.get('ntp_servers')
     try:
-        create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, memory, disk_os_size, disk_flash_size, disk_capacity_size, dns_servers, ntp_servers)
+        create_esxi_group(basename, iso_url, folder_ref, network_ref, ips, cpu, nics, memory, disk_os_size, disk_flash_size, disk_capacity_size, dns_servers, ntp_servers)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to create external resource: {e}')
 

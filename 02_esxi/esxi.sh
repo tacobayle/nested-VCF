@@ -85,6 +85,7 @@ if [[ ${operation} == "apply" ]] ; then
     sed -e "s/\${nested_esxi_root_password}/${NESTED_ESXI_PASSWORD}/" \
         -e "s/\${ip_mgmt}/${esxi_ip}/" \
         -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
+        -e "s/\${vlan_id}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).vlan_id' $jsonFile)/" \
         -e "s/\${dns_servers}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).dns_servers | join(",")' $jsonFile)/" \
         -e "s/\${ntp_servers}/$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).ntp_servers | join(",")' $jsonFile)/" \
         -e "s/\${hostname}/${basename}${esxi}/" \
@@ -95,7 +96,7 @@ if [[ ${operation} == "apply" ]] ; then
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXi '${esxi}' uploaded "}' ${slack_webhook_url} >/dev/null 2>&1; fi
     cpu=$(jq -c -r .cpu $jsonFile)
     memory=$(jq -c -r .memory $jsonFile)
-    net=$(jq -c -r .network_ref $jsonFile)
+    net=$(jq -c -r .nics[0] $jsonFile)
     disk_os_size=$(jq -c -r .disk_os_size $jsonFile)
     disk_flash_size=$(jq -c -r .disk_flash_size $jsonFile)
     disk_capacity_size=$(jq -c -r .disk_capacity_size $jsonFile)
@@ -107,6 +108,7 @@ if [[ ${operation} == "apply" ]] ; then
     govc vm.change -vm "${folder_ref}/${name}" -nested-hv-enabled
     govc vm.disk.create -vm "${folder_ref}/${name}" -name ${name}/disk1 -size ${disk_flash_size}
     govc vm.disk.create -vm "${folder_ref}/${name}" -name ${name}/disk2 -size ${disk_capacity_size}
+    net=$(jq -c -r .nics[1] $jsonFile)
     govc vm.network.add -vm "${folder_ref}/${name}" -net ${net} -net.adapter vmxnet3
     govc vm.power -on=true "${folder_ref}/${name}"
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
