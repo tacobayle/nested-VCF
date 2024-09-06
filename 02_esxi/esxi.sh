@@ -4,6 +4,7 @@ rm -f /root/govc_esxi.error
 rm -f /root/govc_esxi_folder_not_present.error
 source /nested-vcf/bash/download_file.sh
 source /nested-vcf/bash/ip.sh
+source /nested-vcf/bash/govc/govc_esxi_init.sh
 #
 jsonFile="/root/$(basename "$0" | cut -f1 -d'.').json"
 jsonFile1="${1}"
@@ -118,11 +119,11 @@ if [[ ${operation} == "apply" ]] ; then
     count=1
     until $(curl --output /dev/null --silent --head -k https://${esxi_ip})
     do
-      echo "Attempt ${count}: Waiting for ESXi host ${esxi} at https://${esxi_ip} to be reachable..."
+      echo "Attempt ${count}: Waiting for ESXi host ${esxi} at https://${esxi_ip} to be reachable..." | tee -a ${log_file}
       sleep 30
       count=$((count+1))
       if [[ "${count}" -eq 30 ]]; then
-        echo "ERROR: Unable to connect to ESXi host ${esxi} at https://${esxi_ip} after ${count} Attempts"
+        echo "ERROR: Unable to connect to ESXi host ${esxi} at https://${esxi_ip} after ${count} Attempts" | tee -a ${log_file}
         exit 1
       fi
     done
@@ -130,7 +131,16 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${nested_esxi_root_password}/${NESTED_ESXI_PASSWORD}/" /nested-vcf/02_esxi/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
     chmod u+x /root/cert-esxi-$esxi.expect
     /root/cert-esxi-$esxi.expect
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' configured and reachable with renewed cert"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    echo "ESXi host ${esxi}: cert renewed" | tee -a ${log_file}
+    # esxi customization
+    load_govc_esxi
+    govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
+    do
+      echo "ESXi host ${esxi}: mark disk ${item} as ssd" | tee -a ${log_file}
+      govc host.storage.mark -ssd ${item}
+    done
+    # govc env variables are no longer loaded at this point
+    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' configured and reachable with renewed cert and ssd disk"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   done
 fi
 #
