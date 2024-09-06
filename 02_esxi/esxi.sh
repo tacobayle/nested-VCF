@@ -140,7 +140,7 @@ if [[ ${operation} == "apply" ]] ; then
       govc host.storage.mark -ssd ${item}
     done
     # govc env variables are no longer loaded at this point
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' configured and reachable with renewed cert and ssd disk"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   done
 fi
 #
