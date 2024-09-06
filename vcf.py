@@ -112,11 +112,12 @@ def create_cloud_builder(name, ova_url, folder_ref, network_ref, ip, dns_servers
     result=subprocess.Popen(['/bin/bash', 'ncb.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
 
 # Helper function to delete cloud builder VM
-def delete_cloud_builder(name):
+def delete_cloud_builder(name, folder_ref):
     folder='/nested-vcf/03_cloud_builder'
     a_dict = {}
     a_dict['operation'] = "destroy"
     a_dict['name'] = name
+    a_dict['folder_ref'] = folder_ref
     json_file='/root/ncb-tmp.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
@@ -220,12 +221,9 @@ def on_create(spec, **kwargs):
 @kopf.on.delete('cloud-builders')
 def on_delete(spec, **kwargs):
     name = spec.get('name')
-    ova_url = spec.get('ova_url')
     folder_ref = spec.get('folder_ref')
-    network_ref = spec.get('network_ref')
-    ip = spec.get('ip')
     try:
-        delete_cloud_builder(name)
+        delete_cloud_builder(name, folder_ref)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
 
