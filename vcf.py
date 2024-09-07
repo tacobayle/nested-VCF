@@ -255,19 +255,19 @@ def on_delete(spec, **kwargs):
         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
 
 @kopf.on.create('external-gateways')
-def on_create(spec, **kwargs):
-    ova_url = spec.get('ova_url')
-    folder_ref = spec.get('folder_ref')
-    network_ref = spec.get('network_ref')
-    ip = spec.get('ip')
+def on_create(body, **kwargs):
+    ova_url = body['spec']['ova_url']
+    folder_ref = body['spec']['folder_ref']
+    network_ref = body['spec']['network_ref']
+    ip = body['spec']['ip']
     try:
         create_external_gw(ova_url, folder_ref, network_ref, ip)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to create external resource: {e}')
 
 @kopf.on.delete('external-gateways')
-def on_delete(spec, **kwargs):
-    folder_ref = spec.get('folder_ref')
+def on_delete(body, **kwargs):
+    folder_ref = body['spec']['folder_ref']
     try:
         delete_external_gw(folder_ref)
     except requests.RequestException as e:
