@@ -124,6 +124,31 @@ def delete_cloud_builder(name, folder_ref):
         json.dump(a_dict, outfile)
     result=subprocess.Popen(['/bin/bash', 'ncb.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
 
+# Helper function to create external-gw VM
+def create_external_gw(ova_url, folder_ref, network_ref, ip):
+    folder='/nested-vcf/05_create_external-gw'
+    a_dict = {}
+    a_dict['operation'] = "apply"
+    a_dict['ova_url'] = ova_url
+    a_dict['folder_ref'] = folder_ref
+    a_dict['network_ref'] = network_ref
+    a_dict['ip'] = ip
+    json_file='/root/neg-tmp.json'
+    with open(json_file, 'w') as outfile:
+        json.dump(a_dict, outfile)
+    result=subprocess.Popen(['/bin/bash', 'gw.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
+
+# Helper function to delete external-gw VM
+def delete_external_gw(folder_ref):
+    folder='/nested-vcf/05_create_external-gw'
+    a_dict = {}
+    a_dict['operation'] = "destroy"
+    a_dict['folder_ref'] = folder_ref
+    json_file='/root/neg-tmp.json'
+    with open(json_file, 'w') as outfile:
+        json.dump(a_dict, outfile)
+    result=subprocess.Popen(['/bin/bash', 'gw.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
+
 # Helper function to create sddc
 def create_sddc(ip, hostname, license, vmSize, storageSize, ssoDomain, vSanLicense):
     folder='/nested-vcf/04_create_sddc'
@@ -226,6 +251,25 @@ def on_delete(spec, **kwargs):
     folder_ref = spec.get('folder_ref')
     try:
         delete_cloud_builder(name, folder_ref)
+    except requests.RequestException as e:
+        raise kopf.PermanentError(f'Failed to delete external resource: {e}')
+
+@kopf.on.create('external-gateways')
+def on_create(spec, **kwargs):
+    ova_url = spec.get('ova_url')
+    folder_ref = spec.get('folder_ref')
+    network_ref = spec.get('network_ref')
+    ip = spec.get('ip')
+    try:
+        create_external_gw(ova_url, folder_ref, network_ref, ip)
+    except requests.RequestException as e:
+        raise kopf.PermanentError(f'Failed to create external resource: {e}')
+
+@kopf.on.delete('external-gateways')
+def on_delete(spec, **kwargs):
+    folder_ref = spec.get('folder_ref')
+    try:
+        delete_external_gw(folder_ref)
     except requests.RequestException as e:
         raise kopf.PermanentError(f'Failed to delete external resource: {e}')
 

@@ -95,7 +95,7 @@ if [[ ${vm} == 0 ]] ; then
         },
         {
           "Key": "guestinfo.DNS",
-          "Value": "'$(jq -c -r '.dns_servers | join(",")' $jsonFile)'"
+          "Value": "'$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
         },
         {
           "Key": "guestinfo.domain",
@@ -107,7 +107,7 @@ if [[ ${vm} == 0 ]] ; then
         },
         {
           "Key": "guestinfo.ntp",
-          "Value": "'$(jq -c -r '.ntp_servers | join(",")' $jsonFile)'"
+          "Value": "'$(jq -c -r --arg arg "$(jq -c -r .network_ref $jsonFile)" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
         }
       ],
       "NetworkMapping": [
