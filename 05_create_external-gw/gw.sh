@@ -36,8 +36,8 @@ if [ $? -ne 0 ] ; then touch /root/govc_gw.error ; exit ; fi
 if [[ ${operation} == "apply" ]] ; then
   # ova download
   ova_url=$(jq -c -r .ova_url $jsonFile)
-  download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "ESXi ISO"
-  if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXI downloaded"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+  download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "Ubuntu OVA"
+  if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Ubuntu OVA downloaded"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   # folder check
   retry=5
   pause=5
