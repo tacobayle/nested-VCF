@@ -117,7 +117,8 @@ if [[ ${operation} == "apply" ]] ; then
   }'
   echo ${json_data} | jq . | tee "/tmp/options-${gw_name}.json"
   govc import.ova --options="/tmp/options-${gw_name}.json" -folder "${folder_ref}" "/root/$(basename ${ova_url})" | tee -a ${log_file}
-  if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+  govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
+  if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
 fi
 
 if [[ ${operation} == "destroy" ]] ; then
@@ -125,7 +126,7 @@ if [[ ${operation} == "destroy" ]] ; then
   if [[ ${list} != "null" ]] ; then
     govc vm.power -off=true "${gw_name}" | tee -a ${log_file}
     govc vm.destroy "${gw_name}" | tee -a ${log_file}
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   else
     touch /root/govc_gw_already_gone.error
   fi
