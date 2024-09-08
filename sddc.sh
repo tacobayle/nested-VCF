@@ -44,7 +44,7 @@ if [[ ${operation} == "apply" ]] ; then
   fi
   #
   #
-  echo '------------------------------------------------------------' | tee ${log_file}
+  echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Creation of an external gw on the underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
   # ova download
   ova_url=$(jq -c -r .gw.ova_url $jsonFile)
@@ -118,7 +118,7 @@ if [[ ${operation} == "apply" ]] ; then
   names="${gw_name}"
   #
   #
-  echo '------------------------------------------------------------' | tee ${log_file}
+  echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Creation of an ESXi hosts on the underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
   iso_url=$(jq -c -r .esxi.iso_url $jsonFile)
   download_file_from_url_to_location "${iso_url}" "/root/$(basename ${iso_url})" "ESXi ISO"
@@ -129,12 +129,12 @@ if [[ ${operation} == "apply" ]] ; then
   boot_cfg_location="efi/boot/boot.cfg"
   iso_location="/tmp/esxi"
   xorriso -ecma119_map lowercase -osirrox on -indev "/root/$(basename ${iso_url})" -extract / ${iso_mount_location}
-  echo "Copying source ESXi ISO to Build directory" | tee ${log_file}
+  echo "Copying source ESXi ISO to Build directory" | tee -a ${log_file}
   rm -fr ${iso_build_location}
   mkdir -p ${iso_build_location}
   cp -r ${iso_mount_location}/* ${iso_build_location}
   rm -fr ${iso_mount_location}
-  echo "Modifying ${iso_build_location}/${boot_cfg_location}" | tee ${log_file}
+  echo "Modifying ${iso_build_location}/${boot_cfg_location}" | tee -a ${log_file}
   echo "kernelopt=runweasel ks=cdrom:/KS_CUST.CFG" | tee -a ${iso_build_location}/${boot_cfg_location}
   hostSpecs="[]"
   #
@@ -188,7 +188,7 @@ if [[ ${operation} == "apply" ]] ; then
     echo ${hostSpecs} | jq -c -r . | tee /root/hostSpecs.json
   #
   #
-  echo '------------------------------------------------------------' | tee ${log_file}
+  echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
   name=$(jq -c -r cloud_builder.name $jsonFile)
   ip=$(jq -c -r cloud_builder.ip $jsonFile)
@@ -298,7 +298,7 @@ fi
 #
 #
 if [[ ${operation} == "destroy" ]] ; then
-  echo '------------------------------------------------------------' | tee ${log_file}
+  echo '------------------------------------------------------------' | tee -a ${log_file}
   name=$(jq -c -r cloud_builder.name $jsonFile)
   if [[ $(govc find -json vm -name ${name} | jq '. | length') -ge 1 ]] ; then
     if $(govc find -json vm -name ${name} | jq -e '. | any(. == "vm/'${folder}'/'${name}'")' >/dev/null ) ; then
@@ -307,7 +307,7 @@ if [[ ${operation} == "destroy" ]] ; then
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
     fi
   fi
-  echo '------------------------------------------------------------' | tee ${log_file}
+  echo '------------------------------------------------------------' | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
     name="$(jq -c -r .esxi.basename $jsonFile)${esxi}"
@@ -322,7 +322,7 @@ if [[ ${operation} == "destroy" ]] ; then
   done
   #
   #
-  echo '------------------------------------------------------------' | tee ${log_file}
+  echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Deletion of a VM on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
   if [[ ${list_gw} != "null" ]] ; then
     echo "ERROR: unable to delete VM ${gw_name}: it already exists" | tee -a ${log_file}
@@ -333,7 +333,7 @@ if [[ ${operation} == "destroy" ]] ; then
   fi
   #
   #
-  echo '------------------------------------------------------------' | tee ${log_file}
+  echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Deletion of a folder on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
   if $(echo ${list_folder} | jq -e '. | any(. == "./vm/'${folder}'")' >/dev/null ) ; then
     govc object.destroy /${vsphere_dc}/vm/${folder} | tee -a ${log_file}
