@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+source /nested-vcf/bash/download_file.sh
+source /nested-vcf/bash/ip.sh
 rm -f /root/govc.error
 jsonFile="/root/$(basename "$0" | cut -f1 -d'.').json"
 jsonFile1="${1}"
