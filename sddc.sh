@@ -112,7 +112,7 @@ if [[ ${operation} == "apply" ]] ; then
     }'
     echo ${json_data} | jq . | tee "/tmp/options-${gw_name}.json"
     govc import.ova --options="/tmp/options-${gw_name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" | tee -a ${log_file}
-    trunk1=$(jq -c -r .esxi.trunk[0] $jsonFile)
+    trunk1=$(jq -c -r .esxi.nics[0] $jsonFile)
     govc vm.network.add -vm "${folder}/${gw_name}" -net "${trunk1}" -net.adapter vmxnet3 | tee -a ${log_file}
     govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
@@ -333,6 +333,7 @@ if [[ ${operation} == "destroy" ]] ; then
     govc vm.destroy "${gw_name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   fi
+  govc cluster.rule.remove -name "${folder}-affinity-rule"
   #
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
