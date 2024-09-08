@@ -74,6 +74,8 @@ if [[ ${operation} == "apply" ]] ; then
   names=""
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
+    net=$(jq -c -r .nics[0] $jsonFile)
+    echo '{"esxi_trunk": '${net}'}' | tee /root/esxi_trunk.json
     esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
     hostSpec='{"association":"'${folder_ref}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${NESTED_ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
     hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
@@ -96,7 +98,6 @@ if [[ ${operation} == "apply" ]] ; then
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXi '${esxi}' uploaded "}' ${slack_webhook_url} >/dev/null 2>&1; fi
     cpu=$(jq -c -r .cpu $jsonFile)
     memory=$(jq -c -r .memory $jsonFile)
-    net=$(jq -c -r .nics[0] $jsonFile)
     disk_os_size=$(jq -c -r .disk_os_size $jsonFile)
     disk_flash_size=$(jq -c -r .disk_flash_size $jsonFile)
     disk_capacity_size=$(jq -c -r .disk_capacity_size $jsonFile)

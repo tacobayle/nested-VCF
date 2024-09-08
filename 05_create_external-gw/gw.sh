@@ -117,6 +117,25 @@ if [[ ${operation} == "apply" ]] ; then
   }'
   echo ${json_data} | jq . | tee "/tmp/options-${gw_name}.json"
   govc import.ova --options="/tmp/options-${gw_name}.json" -folder "${folder_ref}" "/root/$(basename ${ova_url})" | tee -a ${log_file}
+  retry=10
+  pause=60
+  attempt=0
+  while true ; do
+    echo "attempt $attempt to verify file /root/hostSpecs.json is present" | tee -a ${log_file}
+    if [ -s /root/hostSpecs.json ]; then
+      hostSpecs=$(jq -c -r . /root/hostSpecs.json)
+      break
+    else
+    ((attempt++))
+      if [ $attempt -eq $retry ]; then
+        echo "file /root/hostSpecs.json not present after $attempt attempt" | tee -a ${log_file}
+        touch /root/sddc_esxi.error
+        exit
+      fi
+    fi
+  done
+
+
   govc vm.network.add -vm "${folder_ref}/${gw_name}" -net "nic-trunk-1" -net.adapter vmxnet3
   govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
   if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
@@ -134,12 +153,24 @@ if [[ ${operation} == "destroy" ]] ; then
 fi
 
 
-#        ens224:
+#network:
+#    ethernets:
+#        ens192:
 #            dhcp4: false
+#            addresses: [10.6.248.70/24]
 #            match:
-#                macaddress: 00:50:56:81:a6:e3
+#                macaddress: 00:50:56:81:ff:27
+#            set-name: ens192
+#            gateway4: 10.6.248.1
+#            nameservers:
+#              addresses: []
+#        ens224:
+#            match:
+#                macaddress: 00:50:56:81:c5:68
 #            set-name: ens224
+#    vlans:
 #        vlan.2048:
+#            id: 2048
 #            link: ens224
 #            addresses: [172.16.1.1/24]
 #    version: 2
