@@ -193,7 +193,7 @@ if [[ ${operation} == "apply" ]] ; then
   name=$(jq -c -r cloud_builder.name $jsonFile)
   ip=$(jq -c -r cloud_builder.ip $jsonFile)
   ova_url=$(jq -c -r cloud_builder.ova_url $jsonFile)
-  network_ref=$(jq -c -r .network_ref $jsonFile)
+  network_ref=$(jq -c -r cloud_builder.network_ref $jsonFile)
   #
   download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "VFC-Cloud_Builder OVA"
   if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Cloud Builder OVA downloaded"}' ${slack_webhook_url} >/dev/null 2>&1; fi
