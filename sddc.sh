@@ -327,11 +327,11 @@ if [[ ${operation} == "destroy" ]] ; then
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Deletion of a VM on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
   if [[ ${list_gw} != "null" ]] ; then
-    echo "ERROR: unable to delete VM ${gw_name}: it already exists" | tee -a ${log_file}
-  else
     govc vm.power -off=true "${gw_name}" | tee -a ${log_file}
     govc vm.destroy "${gw_name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+  else
+    echo "ERROR: unable to delete VM ${gw_name}: it already exists" | tee -a ${log_file}
   fi
   govc cluster.rule.remove -name "${folder}-affinity-rule"
   #
