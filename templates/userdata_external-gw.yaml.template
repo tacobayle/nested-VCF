@@ -42,6 +42,16 @@ write_files:
       netplan apply
       apt update
       apt install -y jq
+      apt install -y bind9 bind9utils dnsutils
+      apt install -y chrony
+      mv /etc/chrony/chrony.conf /etc/chrony/chrony.conf.bkup
+      cat /etc/chrony/chrony.conf.bkup | grep -v pool | tee /etc/chrony/chrony.conf
+      ntp_masters=${ntp_masters}
+      echo $ntp_masters | jq -c -r .[] | while read ntp_master
+      do
+        echo "pool $ntp_master iburst" | tee -a /etc/chrony/chrony.conf
+      done
+      systemctl restart chrony.service
       echo "cloud init done" | tee /tmp/cloudInitDone.log
     path: /opt/bootstrap.sh
     permissions: 0755
