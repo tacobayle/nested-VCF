@@ -56,7 +56,8 @@ write_files:
       echo "    version: 2" | tee -a /etc/netplan/50-cloud-init.yaml
       netplan apply
       apt update
-      apt install -y jq
+      apt install -y expect
+      curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
       #
       # DNS config
       #
