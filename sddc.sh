@@ -203,9 +203,6 @@ if [[ ${operation} == "apply" ]] ; then
     if $(govc find -json vm -name ${name} | jq -e '. | any(. == "vm/'${folder}'/'${name}'")' >/dev/null ) ; then
       echo "cloud Builder VM already exists" | tee -a ${log_file}
     else
-      #
-      ncb_ova_json="/root/ncb_ova.json"
-      #
       json_data='
       {
         "DiskProvisioning": "thin",
@@ -274,8 +271,8 @@ if [[ ${operation} == "apply" ]] ; then
         "Name": "'${name}'"
       }
       '
-      echo ${json_data} | jq . | tee ${ncb_ova_json}
-      govc import.ova --options=${ncb_ova_json} -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
+      echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
+      govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
       govc vm.power -on=true "$(jq -c -r .name $jsonFile)" | tee -a ${log_file}
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${slack_webhook_url} >/dev/null 2>&1; fi
