@@ -65,7 +65,7 @@ if [[ ${operation} == "apply" ]] ; then
     forwarders_bind=$(jq -c -r '.gw.dns_forwarders | join(";")' $jsonFile)
     networks=$(jq -c -r .vcenter.networks $jsonFile)
     domain=$(jq -c -r .domain $jsonFile)
-    cidr=$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f1)
+    cidr=$(jq -c -r --arg arg "MANAGEMENT" '.vsphere_underlay.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
     IFS="." read -r -a octets <<< "$cidr"
     count=0
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
@@ -80,7 +80,7 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${domain}/${domain}/" \
         -e "s/\${reverse}/${reverse}/" \
         -e "s/\${ips}/${ips}/" \
-        -e "s@\${networks}@${networks}/" \
+        -e "s@\${networks}@${networks}@" \
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
         -e "s/\${basename}/${basename}/" \
         -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /tmp/${gw_name}_userdata.yaml > /dev/null
