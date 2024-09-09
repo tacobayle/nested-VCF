@@ -157,23 +157,17 @@ if [[ ${operation} == "apply" ]] ; then
           export GOVC_INSECURE=true
           export GOVC_URL=${esxi_ip}
           export GOVC_USERNAME=root
-          # ssh check
-          retry=6
-          pause=10
-          attempt=1
-          while true ; do
-            echo "attempt $attempt to verify ssh to esxi ${gw_name}"
-            ssh -o StrictHostKeyChecking=no "root@${esxi_ip}" -q >/dev/null 2>&1
-            if [[ $? -eq 0 ]]; then
-              echo "esxi is reachable."
-              break
-            fi
-            ((attempt++))
-            if [ $attempt -eq $retry ]; then
-              echo "ESXi is unreachable after $attempt attempt"
+          # https check
+          count=1
+          until $(curl --output /dev/null --silent --head -k https://${esxi_ip})
+          do
+            echo "Attempt ${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
+            sleep 30
+            count=$((count+1))
+            if [[ "${count}" -eq 30 ]]; then
+              echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip} after ${count} Attempts"
               exit
             fi
-            sleep $pause
           done
           chmod u+x /ubuntu/cert-esxi-${esxi}.expect
           /home/ubuntu/cert-esxi-${esxi}.expect
@@ -264,11 +258,7 @@ EOF
       govc vm.power -on=true "${folder}/${name}" | tee -a ${log_file}
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
       gw_ip=$(jq -c -r .gw.ip $jsonFile)
-      for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
-      do
-        esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-        ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
-      done
+      ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
 
 
       #  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
