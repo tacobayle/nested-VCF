@@ -199,96 +199,94 @@ if [[ ${operation} == "apply" ]] ; then
   #
   download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "VFC-Cloud_Builder OVA"
   if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Cloud Builder OVA downloaded"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-  if [[ $(govc find -json vm -name ${name} | jq '. | length') -ge 1 ]] ; then
-    if $(govc find -json vm -name ${name} | jq -e '. | any(. == "vm/'${folder}'/'${name}'")' >/dev/null ) ; then
-      echo "cloud Builder VM already exists" | tee -a ${log_file}
-    else
-      json_data='
-      {
-        "DiskProvisioning": "thin",
-        "IPAllocationPolicy": "fixedPolicy",
-        "IPProtocol": "IPv4",
-        "PropertyMapping": [
-          {
-            "Key": "FIPS_ENABLE",
-            "Value": "False"
-          },
-          {
-            "Key": "guestinfo.ADMIN_USERNAME",
-            "Value": "admin"
-          },
-          {
-            "Key": "guestinfo.ADMIN_PASSWORD",
-            "Value": "'${cloud_builder_password}'"
-          },
-          {
-            "Key": "guestinfo.ROOT_PASSWORD",
-            "Value": "'${cloud_builder_password}'"
-          },
-          {
-            "Key": "guestinfo.hostname",
-            "Value": "'${name}'"
-          },
-          {
-            "Key": "guestinfo.ip0",
-            "Value": "'${ip}'"
-          },
-          {
-            "Key": "guestinfo.netmask0",
-            "Value": "'$(ip_netmask_by_prefix $(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")'"
-          },
-          {
-            "Key": "guestinfo.gateway",
-            "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
-          },
-          {
-            "Key": "guestinfo.DNS",
-            "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
-          },
-          {
-            "Key": "guestinfo.domain",
-            "Value": ""
-          },
-          {
-            "Key": "guestinfo.searchpath",
-            "Value": ""
-          },
-          {
-            "Key": "guestinfo.ntp",
-            "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
-          }
-        ],
-        "NetworkMapping": [
-          {
-            "Name": "Network 1",
-            "Network": "'${network_ref}'"
-          }
-        ],
-        "MarkAsTemplate": false,
-        "PowerOn": false,
-        "InjectOvfEnv": false,
-        "WaitForIP": false,
-        "Name": "'${name}'"
-      }
-      '
-      echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
-      govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
-      if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-      govc vm.power -on=true "$(jq -c -r .name $jsonFile)" | tee -a ${log_file}
-      if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-      count=1
-      until $(curl --output /dev/null --silent --head -k https://$(jq -c -r .ip $jsonFile))
-      do
-        echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip} to be reachable..."
-        sleep 30
-        count=$((count+1))
-        if [[ "${count}" -eq 30 ]]; then
-          echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip} to be reachable after ${count} Attempts"
-          exit 1
-        fi
-      done
-      if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-    fi
+  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
+    echo "cloud Builder VM already exists" | tee -a ${log_file}
+  else
+    json_data='
+    {
+      "DiskProvisioning": "thin",
+      "IPAllocationPolicy": "fixedPolicy",
+      "IPProtocol": "IPv4",
+      "PropertyMapping": [
+        {
+          "Key": "FIPS_ENABLE",
+          "Value": "False"
+        },
+        {
+          "Key": "guestinfo.ADMIN_USERNAME",
+          "Value": "admin"
+        },
+        {
+          "Key": "guestinfo.ADMIN_PASSWORD",
+          "Value": "'${cloud_builder_password}'"
+        },
+        {
+          "Key": "guestinfo.ROOT_PASSWORD",
+          "Value": "'${cloud_builder_password}'"
+        },
+        {
+          "Key": "guestinfo.hostname",
+          "Value": "'${name}'"
+        },
+        {
+          "Key": "guestinfo.ip0",
+          "Value": "'${ip}'"
+        },
+        {
+          "Key": "guestinfo.netmask0",
+          "Value": "'$(ip_netmask_by_prefix $(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")'"
+        },
+        {
+          "Key": "guestinfo.gateway",
+          "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
+        },
+        {
+          "Key": "guestinfo.DNS",
+          "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
+        },
+        {
+          "Key": "guestinfo.domain",
+          "Value": ""
+        },
+        {
+          "Key": "guestinfo.searchpath",
+          "Value": ""
+        },
+        {
+          "Key": "guestinfo.ntp",
+          "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
+        }
+      ],
+      "NetworkMapping": [
+        {
+          "Name": "Network 1",
+          "Network": "'${network_ref}'"
+        }
+      ],
+      "MarkAsTemplate": false,
+      "PowerOn": false,
+      "InjectOvfEnv": false,
+      "WaitForIP": false,
+      "Name": "'${name}'"
+    }
+    '
+    echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
+    govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
+    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    govc vm.power -on=true "$(jq -c -r .name $jsonFile)" | tee -a ${log_file}
+    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    count=1
+    until $(curl --output /dev/null --silent --head -k https://$(jq -c -r .ip $jsonFile))
+    do
+      echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip} to be reachable..."
+      sleep 30
+      count=$((count+1))
+      if [[ "${count}" -eq 30 ]]; then
+        echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip} to be reachable after ${count} Attempts"
+        exit 1
+      fi
+    done
+    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   fi
 fi
 #
