@@ -162,11 +162,11 @@ if [[ ${operation} == "apply" ]] ; then
           until \$(curl --output /dev/null --silent --head -k https://${esxi_ip})
           do
             echo "Attempt \${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
-            sleep 30
+            sleep 60
             count=$((count+1))
-            if [[ "${count}" -eq 30 ]]; then
+            if [[ "\${count}" -eq 10 ]]; then
               echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
-              if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} unable to reach"}' \${slack_webhook_url} >/dev/null 2>&1; fi
+              if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} unable to reach"}' \${slack_webhook_url} >/dev/null 2>&1; fi
               exit
             fi
           done
@@ -178,7 +178,7 @@ if [[ ${operation} == "apply" ]] ; then
             do
               govc host.storage.mark -ssd \${item}
               echo "ESXi host ${esxi_ip}: mark disk \${item} as ssd"
-              if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+              if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert and disks marked as SSD"}' \${slack_webhook_url} >/dev/null 2>&1; fi
             done
           done
 EOF
