@@ -117,7 +117,7 @@ write_files:
       EOT
       #
       count_esxi=1
-      echo ${ips} | jq -c -r .[] | while read ip_esxi
+      echo '${ips}' | jq -c -r .[] | while read ip_esxi
       do
         echo "${basename}$count_esxi      IN            A       ${ip_esxi}" | tee -a /var/lib/bind/db.${domain}
         ((count_esxi++))
@@ -137,7 +137,7 @@ write_files:
       \$ORIGIN ${reverse}.in-addr.arpa.
       EOT
       count_esxi=1
-      echo ${ips} | jq -c -r .[] | while read ip_esxi
+      echo '${ips}' | jq -c -r .[] | while read ip_esxi
       do
         echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename}$count_esxi.${domain}." | tee -a /var/lib/bind/db.${reverse}
         ((count_esxi++))
