@@ -159,24 +159,25 @@ if [[ ${operation} == "apply" ]] ; then
           export GOVC_USERNAME=root
           # https check
           count=1
-          until $(curl --output /dev/null --silent --head -k https://${esxi_ip})
+          until \$(curl --output /dev/null --silent --head -k https://${esxi_ip})' | tee -a /root/esxi_check_${esxi}.sh
           do
-            echo "Attempt ${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
+            echo "Attempt \${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
             sleep 30
             count=$((count+1))
             if [[ "${count}" -eq 30 ]]; then
-              echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip} after ${count} Attempts"
+              echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
+              if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} unable to reach"}' \${slack_webhook_url} >/dev/null 2>&1; fi
               exit
             fi
           done
-          chmod u+x /ubuntu/cert-esxi-${esxi}.expect
+          chmod u+x /home/ubuntu/cert-esxi-${esxi}.expect
           /home/ubuntu/cert-esxi-${esxi}.expect
           govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
           do
-             echo "ESXi host ${esxi_ip}: mark disk ${item} as ssd"
-             govc host.storage.mark -ssd ${item}
+            govc host.storage.mark -ssd \${item}
+            echo "ESXi host ${esxi_ip}: mark disk \${item} as ssd"
+            if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
           done
-          if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
 EOF
           scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip}:/home/ubuntu/esxi_check_${esxi}.sh
         done
