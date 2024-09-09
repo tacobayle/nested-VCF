@@ -61,13 +61,15 @@ if [[ ${operation} == "apply" ]] ; then
     prefix=$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2)
     default_gw=$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)
     ntp_masters=$(jq -c -r .gw.ntp_masters $jsonFile)
-    forwarder=$(jq -c -r '.gw.dns_forwarders | join(",")' $jsonFile)
+    forwarders_netplan=$(jq -c -r '.gw.dns_forwarders | join(",")' $jsonFile)
+    forwarders_bind=$(jq -c -r '.gw.dns_forwarders | join(";")' $jsonFile)
     sed -e "s/\${password}/${external_gw_password}/" \
         -e "s/\${ip}/${ip}/" \
         -e "s/\${prefix}/${prefix}/" \
         -e "s/\${default_gw}/${default_gw}/" \
         -e "s/\${ntp_masters}/${ntp_masters}/" \
-        -e "s/\${dns}/${forwarder}/" \
+        -e "s/\${forwarders_netplan}/${forwarders_netplan}/" \
+        -e "s/\${forwarders_bind}/${forwarders_bind}/" \
         -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /tmp/${gw_name}_userdata.yaml > /dev/null
     json_data='
     {
