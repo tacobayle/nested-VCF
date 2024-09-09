@@ -163,7 +163,7 @@ if [[ ${operation} == "apply" ]] ; then
           do
             echo "Attempt \${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
             sleep 60
-            count=$((count+1))
+            count=\$((count+1))
             if [[ "\${count}" -eq 10 ]]; then
               echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
               if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} unable to reach"}' \${slack_webhook_url} >/dev/null 2>&1; fi
