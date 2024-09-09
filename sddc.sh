@@ -159,7 +159,7 @@ if [[ ${operation} == "apply" ]] ; then
           export GOVC_USERNAME=root
           # https check
           count=1
-          until \$(curl --output /dev/null --silent --head -k https://${esxi_ip})' | tee -a /root/esxi_check_${esxi}.sh
+          until \$(curl --output /dev/null --silent --head -k https://${esxi_ip})
           do
             echo "Attempt \${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
             sleep 30
