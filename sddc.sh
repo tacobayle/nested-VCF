@@ -143,47 +143,46 @@ if [[ ${operation} == "apply" ]] ; then
       if [[ $? -eq 0 ]]; then
         echo "Gw ${gw_name} is reachable."
         if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-        scp -o StrictHostKeyChecking=no /nested-vcf/templates/esxi_cert.expect.template ubuntu@${ip}:/home/ubuntu/esxi_cert.expect.template
         for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
         do
           esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
           sed -e "s/\${esxi_ip}/${esxi_ip}/" \
               -e "s/\${nested_esxi_root_password}/${NESTED_ESXI_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
           scp -o StrictHostKeyChecking=no /root/cert-esxi-$esxi.expect ubuntu@${ip}:/home/ubuntu/cert-esxi-$esxi.expect
-          sudo tee /root/esxi_check_${esxi}.sh > /dev/null <<EOF
-#!/bin/bash
-#
-slack_webhook_url=${slack_webhook_url}
-export GOVC_PASSWORD=${NESTED_ESXI_PASSWORD}
-export GOVC_INSECURE=true
-export GOVC_URL=${esxi_ip}
-export GOVC_USERNAME=root
-# ssh check
-retry=6
-pause=10
-attempt=1
-while true ; do
-  echo "attempt $attempt to verify ssh to esxi ${gw_name}"
-  ssh -o StrictHostKeyChecking=no "root@${esxi_ip}" -q >/dev/null 2>&1
-  if [[ $? -eq 0 ]]; then
-    echo "esxi is reachable."
-    break
-  fi
-  ((attempt++))
-  if [ $attempt -eq $retry ]; then
-    echo "ESXi is unreachable after $attempt attempt"
-    exit
-  fi
-  sleep $pause
-done
-chmod u+x /ubuntu/cert-esxi-${esxi}.expect
-/home/ubuntu/cert-esxi-${esxi}.expect
-govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
-do
-   echo "ESXi host ${esxi_ip}: mark disk ${item} as ssd"
-   govc host.storage.mark -ssd ${item}
-done
-if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+          tee /root/esxi_check_${esxi}.sh > /dev/null <<EOF
+          #!/bin/bash
+          #
+          slack_webhook_url=${slack_webhook_url}
+          export GOVC_PASSWORD=${NESTED_ESXI_PASSWORD}
+          export GOVC_INSECURE=true
+          export GOVC_URL=${esxi_ip}
+          export GOVC_USERNAME=root
+          # ssh check
+          retry=6
+          pause=10
+          attempt=1
+          while true ; do
+            echo "attempt $attempt to verify ssh to esxi ${gw_name}"
+            ssh -o StrictHostKeyChecking=no "root@${esxi_ip}" -q >/dev/null 2>&1
+            if [[ $? -eq 0 ]]; then
+              echo "esxi is reachable."
+              break
+            fi
+            ((attempt++))
+            if [ $attempt -eq $retry ]; then
+              echo "ESXi is unreachable after $attempt attempt"
+              exit
+            fi
+            sleep $pause
+          done
+          chmod u+x /ubuntu/cert-esxi-${esxi}.expect
+          /home/ubuntu/cert-esxi-${esxi}.expect
+          govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
+          do
+             echo "ESXi host ${esxi_ip}: mark disk ${item} as ssd"
+             govc host.storage.mark -ssd ${item}
+          done
+          if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
 EOF
           scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${gw_ip}:/home/ubuntu/esxi_check_${esxi}.sh
         done
@@ -241,7 +240,7 @@ EOF
           -e "s/\${dns_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
           -e "s/\${ntp_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
           -e "s/\${hostname}/${name}${esxi}/" \
-          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/02_esxi/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
+          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
       echo "Building new ISO for ESXi ${esxi}"
       xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
       ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
@@ -268,7 +267,7 @@ EOF
       for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
       do
         esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-        ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh"
+        ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
       done
 
 
