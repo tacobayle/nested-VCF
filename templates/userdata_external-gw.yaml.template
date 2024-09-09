@@ -46,7 +46,7 @@ write_files:
       apt install -y chrony
       mv /etc/chrony/chrony.conf /etc/chrony/chrony.conf.bkup
       cat /etc/chrony/chrony.conf.bkup | grep -v pool | tee /etc/chrony/chrony.conf
-      ntp_masters=${ntp_masters}
+      ntp_masters='${ntp_masters}'
       echo $ntp_masters | jq -c -r .[] | while read ntp_master
       do
         echo "pool $ntp_master iburst" | tee -a /etc/chrony/chrony.conf
