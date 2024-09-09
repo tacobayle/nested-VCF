@@ -314,7 +314,7 @@ fi
 #
 if [[ ${operation} == "destroy" ]] ; then
   echo '------------------------------------------------------------' | tee -a ${log_file}
-  name=$(jq -c -r cloud_builder.name $jsonFile)
+  name=$(jq -c -r .cloud_builder.name $jsonFile)
   if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
     govc vm.power -off=true "${folder}/${name}" | tee -a ${log_file}
     govc vm.destroy "${folder}/${name}" | tee -a ${log_file}
