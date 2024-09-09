@@ -184,7 +184,7 @@ if [[ ${operation} == "apply" ]] ; then
           done
           if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
 EOF
-          scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${gw_ip}:/home/ubuntu/esxi_check_${esxi}.sh
+          scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip}:/home/ubuntu/esxi_check_${esxi}.sh
         done
         break
       fi
