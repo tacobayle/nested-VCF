@@ -70,7 +70,7 @@ if [[ ${operation} == "apply" ]] ; then
     json_data='
     {
       "DiskProvisioning": "thin",
-      "IPAllocationPolicy": "dhcpPolicy",
+      "IPAllocationPolicy": "fixedPolicy",
       "IPProtocol": "IPv4",
       "PropertyMapping": [
         {
@@ -87,7 +87,7 @@ if [[ ${operation} == "apply" ]] ; then
         },
         {
           "Key": "public-keys",
-          "Value": ""
+          "Value": "'$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub)'"
         },
         {
           "Key": "user-data",
@@ -194,6 +194,7 @@ if [[ ${operation} == "apply" ]] ; then
   echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
   name=$(jq -c -r .cloud_builder.name $jsonFile)
   ip=$(jq -c -r .cloud_builder.ip $jsonFile)
+  ip_gw=$(jq -c -r .gw.ip $jsonFile)
   ova_url=$(jq -c -r .cloud_builder.ova_url $jsonFile)
   network_ref=$(jq -c -r .cloud_builder.network_ref $jsonFile)
   #
@@ -242,7 +243,7 @@ if [[ ${operation} == "apply" ]] ; then
         },
         {
           "Key": "guestinfo.DNS",
-          "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
+          "Value": "'${ip_gw}'"
         },
         {
           "Key": "guestinfo.domain",
@@ -273,7 +274,7 @@ if [[ ${operation} == "apply" ]] ; then
     echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
     govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-    govc vm.power -on=true "$(jq -c -r .name $jsonFile)" | tee -a ${log_file}
+    govc vm.power -on=true "${name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${slack_webhook_url} >/dev/null 2>&1; fi
     count=1
     until $(curl --output /dev/null --silent --head -k https://$(jq -c -r .ip $jsonFile))
@@ -297,12 +298,10 @@ fi
 if [[ ${operation} == "destroy" ]] ; then
   echo '------------------------------------------------------------' | tee -a ${log_file}
   name=$(jq -c -r cloud_builder.name $jsonFile)
-  if [[ $(govc find -json vm -name ${name} | jq '. | length') -ge 1 ]] ; then
-    if $(govc find -json vm -name ${name} | jq -e '. | any(. == "vm/'${folder}'/'${name}'")' >/dev/null ) ; then
-      govc vm.power -off=true "${name}" | tee -a ${log_file}
-      govc vm.destroy "${name}" | tee -a ${log_file}
-      if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-    fi
+  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
+    govc vm.power -off=true "${name}" | tee -a ${log_file}
+    govc vm.destroy "${name}" | tee -a ${log_file}
+    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   fi
   echo '------------------------------------------------------------' | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
