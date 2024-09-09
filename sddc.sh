@@ -133,6 +133,25 @@ if [[ ${operation} == "apply" ]] ; then
     govc vm.network.add -vm "${folder}/${gw_name}" -net "${trunk1}" -net.adapter vmxnet3 | tee -a ${log_file}
     govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    # ssh check
+    retry=6
+    pause=10
+    attempt=1
+    while true ; do
+      echo "attempt $attempt to verify ssh to gw ${gw_name}" | tee -a ${log_file}
+      ssh -o StrictHostKeyChecking=no "$ip" -q >/dev/null 2>&1
+      if [[ $? -eq 0 ]]; then
+        echo "Gw ${gw_name} is reachable."
+        if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+        break
+      fi
+      ((attempt++))
+      if [ $attempt -eq $retry ]; then
+        echo "Gw ${gw_name} is unreachable after $attempt attempt" | tee -a ${log_file}
+        exit
+      fi
+      sleep $pause
+    done
   fi
   names="${gw_name}"
   #
@@ -201,6 +220,35 @@ if [[ ${operation} == "apply" ]] ; then
       govc vm.network.add -vm "${folder}/${name}" -net ${net} -net.adapter vmxnet3 | tee -a ${log_file}
       govc vm.power -on=true "${folder}/${name}" | tee -a ${log_file}
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+      #  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+      #  do
+      #    esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
+      #    count=1
+      #    until $(curl --output /dev/null --silent --head -k https://${esxi_ip})
+      #    do
+      #      echo "Attempt ${count}: Waiting for ESXi host ${esxi} at https://${esxi_ip} to be reachable..." | tee -a ${log_file}
+      #      sleep 30
+      #      count=$((count+1))
+      #      if [[ "${count}" -eq 30 ]]; then
+      #        echo "ERROR: Unable to connect to ESXi host ${esxi} at https://${esxi_ip} after ${count} Attempts" | tee -a ${log_file}
+      #        exit 1
+      #      fi
+      #    done
+      #    sed -e "s/\${esxi_ip}/${esxi_ip}/" \
+      #        -e "s/\${nested_esxi_root_password}/${NESTED_ESXI_PASSWORD}/" /nested-vcf/02_esxi/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
+      #    chmod u+x /root/cert-esxi-$esxi.expect
+      #    /root/cert-esxi-$esxi.expect
+      #    echo "ESXi host ${esxi}: cert renewed" | tee -a ${log_file}
+      #    # esxi customization
+      #    load_govc_esxi
+      #    govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
+      #    do
+      #      echo "ESXi host ${esxi}: mark disk ${item} as ssd" | tee -a ${log_file}
+      #      govc host.storage.mark -ssd ${item}
+      #    done
+      #    # govc env variables are no longer loaded at this point
+      #    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' configured and reachable with renewed cert and disks marked as SSD"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+      #  done
     fi
   done
   govc cluster.rule.create -name "${folder}-affinity-rule" -enable -affinity ${names}
