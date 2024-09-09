@@ -261,8 +261,6 @@ EOF
       govc vm.network.add -vm "${folder}/${name}" -net ${net} -net.adapter vmxnet3 | tee -a ${log_file}
       govc vm.power -on=true "${folder}/${name}" | tee -a ${log_file}
       if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
-      gw_ip=$(jq -c -r .gw.ip $jsonFile)
-      ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
 
 
       #  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
@@ -298,6 +296,11 @@ EOF
   done
   govc cluster.rule.create -name "${folder}-affinity-rule" -enable -affinity ${names}
   echo ${hostSpecs} | jq -c -r . | tee /root/hostSpecs.json
+  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  do
+    gw_ip=$(jq -c -r .gw.ip $jsonFile)
+    ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
+  done
   #
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
