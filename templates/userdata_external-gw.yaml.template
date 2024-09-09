@@ -139,7 +139,7 @@ write_files:
       count_esxi=1
       echo ${ips} | jq -c -r .[] | while read ip_esxi
       do
-        echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename}$count_esxi.${domain}." | tee -a /var/lib/bind/db.${domain}
+        echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename}$count_esxi.${domain}." | tee -a /var/lib/bind/db.${reverse}
         ((count_esxi++))
       done
       systemctl restart bind9.service
