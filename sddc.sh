@@ -77,8 +77,8 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${default_gw}/${default_gw}/" \
         -e "s/\${ntp_masters}/${ntp_masters}/" \
         -e "s/\${forwarders_netplan}/${forwarders_netplan}/" \
-        -e "s/\${domain}/${domain}/" \
-        -e "s/\${reverse}/${reverse}/" \
+        -e "s/\${domain}/${domain}/g" \
+        -e "s/\${reverse}/${reverse}/g" \
         -e "s/\${ips}/${ips}/" \
         -e "s@\${networks}@${networks}@" \
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
