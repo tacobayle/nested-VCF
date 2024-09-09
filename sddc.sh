@@ -303,14 +303,15 @@ if [[ ${operation} == "destroy" ]] ; then
   echo '------------------------------------------------------------' | tee -a ${log_file}
   name=$(jq -c -r cloud_builder.name $jsonFile)
   if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
-    govc vm.power -off=true "${name}" | tee -a ${log_file}
-    govc vm.destroy "${name}" | tee -a ${log_file}
+    govc vm.power -off=true "${folder}/${name}" | tee -a ${log_file}
+    govc vm.destroy "${folder}/${name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   fi
   echo '------------------------------------------------------------' | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
     name="$(jq -c -r .esxi.basename $jsonFile)${esxi}"
+    echo "Deletion of a nested ESXi ${name} on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
       govc vm.power -off=true "${folder}/${name}"
       govc vm.destroy "${folder}/${name}"
