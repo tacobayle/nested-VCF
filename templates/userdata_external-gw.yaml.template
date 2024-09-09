@@ -37,11 +37,23 @@ write_files:
       echo "            match:" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "                macaddress: $macLast" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "            set-name: $ifaceLastName" | tee -a /etc/netplan/50-cloud-init.yaml
+      echo "    $vlans:" | tee -a /etc/netplan/50-cloud-init.yaml
+      networks='${networks}'
+      echo $networks | jq -c -r .[] | while read net
+      do
+        echo "        vlan.`echo $net | jq -c -r .vlan_id`:" | tee -a /etc/netplan/50-cloud-init.yaml
+        echo "            id: `echo $net | jq -c -r .vlan_id`" | tee -a /etc/netplan/50-cloud-init.yaml
+        echo "            link: $ifaceLastName" | tee -a /etc/netplan/50-cloud-init.yaml
+        echo "            addresses: [`echo $net | jq -c -r .gw`/`echo $net | jq -c -r .cidr | cut -f2 -d'/'`]" | tee -a /etc/netplan/50-cloud-init.yaml
+        echo "pool $ntp_master iburst" | tee -a /etc/chrony/chrony.conf
+      done
       echo "    version: 2" | tee -a /etc/netplan/50-cloud-init.yaml
       netplan apply
       apt update
       apt install -y jq
+      #
       # DNS config
+      #
       apt install -y bind9 bind9utils dnsutils
       cp /etc/bind/named.conf.options /etc/bind/named.conf.options.bkup
       cp /etc/bind/named.conf.options /etc/bind/named.conf.options.old
@@ -61,9 +73,76 @@ write_files:
         allow-transfer { any; };
       };
       EOT
+      #
+      sudo cp /etc/bind/named.conf.local /etc/bind/named.conf.local.old
+      sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
+      zone "${domain}" {
+        type master;
+        forwarders {};
+        allow-transfer { any; };
+        update-policy {
+          grant myKeyName zonesub any;
+        };
+        file "/var/lib/bind/db.${domain}";
+      };
+      zone "${reverse}.in-addr.arpa" {
+        type master;
+        update-policy {
+          grant myKeyName zonesub any;
+        };
+        allow-transfer { any; };
+        file "/var/lib/bind/db.${reverse}";
+      };
+      EOT
+      #
+      sudo tee /var/lib/bind/db.${domain} > /dev/null <<EOT
+      \$ORIGIN .
+      \$TTL 60
+      ${domain}                IN SOA dns.${domain}. admin.${domain}. (
+                                      329        ; serial
+                                      604800     ; refresh (1 week)
+                                      86400      ; retry (1 day)
+                                      2419200    ; expire (4 weeks)
+                                      604800     ; minimum (1 week)
+                                      )
+                              NS      dns.${domain}.
+      \$ORIGIN ${domain}.
+      dns       IN            A       ${ip}
+      EOT
+      #
+      count_esxi=1
+      echo ${ips} | jq -c -r .[] | while read ip_esxi
+      do
+        echo "${basename}$count_esxi      IN            A       ${ip_esxi}" | tee -a /var/lib/bind/db.${domain}
+        ((count_esxi++))
+      done
+      #
+      sudo tee /var/lib/bind/db.${reverse} > /dev/null <<EOT
+      \$ORIGIN .
+      \$TTL 60
+      ${reverse}.in-addr.arpa     IN SOA  dns.${domain}. admin.${domain}. (
+                                      298        ; serial
+                                      604800     ; refresh (1 week)
+                                      86400      ; retry (1 day)
+                                      2419200    ; expire (4 weeks)
+                                      604800     ; minimum (1 week)
+                                      )
+                              NS      dns.${domain}.
+      \$ORIGIN ${reverse}.in-addr.arpa.
+      EOT
+      count_esxi=1
+      echo ${ips} | jq -c -r .[] | while read ip_esxi
+      do
+        echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename}$count_esxi.${domain}." | tee -a /var/lib/bind/db.${domain}
+        ((count_esxi++))
+      done
+      systemctl restart bind9.service
+      #
+      # NTP config
+      #
       apt install -y chrony
-      mv /etc/chrony/chrony.conf /etc/chrony/chrony.conf.bkup
-      cat /etc/chrony/chrony.conf.bkup | grep -v pool | tee /etc/chrony/chrony.conf
+      mv /etc/chrony/chrony.conf /etc/chrony/chrony.conf.old
+      cat /etc/chrony/chrony.conf.old | grep -v pool | tee /etc/chrony/chrony.conf
       ntp_masters='${ntp_masters}'
       echo $ntp_masters | jq -c -r .[] | while read ntp_master
       do
