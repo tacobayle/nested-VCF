@@ -65,7 +65,7 @@ if [[ ${operation} == "apply" ]] ; then
     forwarders_bind=$(jq -c -r '.gw.dns_forwarders | join(";")' $jsonFile)
     networks=$(jq -c -r .vcenter.networks $jsonFile)
     domain=$(jq -c -r .domain $jsonFile)
-    cidr=$(jq -c -r --arg arg "MANAGEMENT" '.vsphere_underlay.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
+    cidr=$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
     IFS="." read -r -a octets <<< "$cidr"
     count=0
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
@@ -173,12 +173,12 @@ if [[ ${operation} == "apply" ]] ; then
       rm -f "${iso_location}-${esxi}.iso"
       sed -e "s/\${nested_esxi_root_password}/${NESTED_ESXI_PASSWORD}/" \
           -e "s/\${ip_mgmt}/${esxi_ip}/" \
-          -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "MANAGEMENT" '.vsphere_underlay.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
-          -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.vsphere_underlay.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
-          -e "s/\${dns_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vsphere_underlay.networks[] | select( .type == $arg).gw' $jsonFile)/" \
-          -e "s/\${ntp_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vsphere_underlay.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+          -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
+          -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
+          -e "s/\${dns_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+          -e "s/\${ntp_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
           -e "s/\${hostname}/${name}${esxi}/" \
-          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.vsphere_underlay.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/02_esxi/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
+          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/02_esxi/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
       echo "Building new ISO for ESXi ${esxi}"
       xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
       ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
