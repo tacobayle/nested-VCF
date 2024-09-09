@@ -139,7 +139,7 @@ if [[ ${operation} == "apply" ]] ; then
     attempt=1
     while true ; do
       echo "attempt $attempt to verify ssh to gw ${gw_name}" | tee -a ${log_file}
-      ssh -o StrictHostKeyChecking=no "$ip" -q >/dev/null 2>&1
+      ssh -o StrictHostKeyChecking=no "ubuntu@${ip}" -q >/dev/null 2>&1
       if [[ $? -eq 0 ]]; then
         echo "Gw ${gw_name} is reachable."
         if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
