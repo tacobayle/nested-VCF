@@ -3,17 +3,17 @@
 source /nested-vcf/bash/download_file.sh
 source /nested-vcf/bash/ip.sh
 rm -f /root/govc.error
-jsonFile="/root/$(basename "$0" | cut -f1 -d'.').json"
-jsonFile1="${1}"
-if [ -s "${jsonFile1}" ]; then
-  jq . $jsonFile1 > /dev/null
+#jsonFile="/root/$(basename "$0" | cut -f1 -d'.').json"
+jsonFile="${1}"
+if [ -s "${jsonFile}" ]; then
+  jq . $jsonFile > /dev/null
 else
-  echo "ERROR: jsonFile1 file is not present"
+  echo "ERROR: jsonFile file is not present"
   exit 255
 fi
 #
-jsonFile2="/root/variables.json"
-jq -s '.[0] * .[1]' ${jsonFile1} ${jsonFile2} | tee ${jsonFile}
+#jsonFile2="/root/variables.json"
+#jq -s '.[0] * .[1]' ${jsonFile1} ${jsonFile2} | tee ${jsonFile}
 #
 operation=$(jq -c -r .operation $jsonFile)
 #
