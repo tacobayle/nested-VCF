@@ -177,7 +177,7 @@ if [[ ${operation} == "apply" ]] ; then
           govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
           do
             govc host.storage.mark -ssd \${item}
-            if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} disks \${item} marked as SSD"}' \${slack_webhook_url} >/dev/null 2>&1; fi
+            if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} disks '\${item}' marked as SSD"}' \${slack_webhook_url} >/dev/null 2>&1; fi
           done
 EOF
           scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip}:/home/ubuntu/esxi_check_${esxi}.sh
