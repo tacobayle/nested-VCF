@@ -42,7 +42,7 @@ write_files:
       apt update
       apt install -y jq
       mv /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.old
-      cat /etc/netplan/50-cloud-init.old | head -n -1 | tee /etc/netplan/50-cloud-init.yaml
+      cat /etc/netplan/50-cloud-init.yaml.old | head -n -1 | tee /etc/netplan/50-cloud-init.yaml
       echo "    vlans:" | tee -a /etc/netplan/50-cloud-init.yaml
       networks='${networks}'
       echo $networks | jq -c -r .[] | while read net
