@@ -231,9 +231,7 @@ EOF
       echo "ERROR: unable to create nested ESXi ${name}: it already exists" | tee -a ${log_file}
     else
       net=$(jq -c -r .esxi.nics[0] $jsonFile)
-      echo '{"esxi_trunk": '${net}'}' | tee /root/esxi_trunk.json
       esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-      domain=$(jq -c -r .domain $jsonFile)
       hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
       echo "Building custom ESXi ISO for ESXi${esxi}"
