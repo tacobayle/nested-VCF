@@ -68,7 +68,7 @@ if [[ ${operation} == "apply" ]] ; then
     forwarders_netplan=$(jq -c -r '.gw.dns_forwarders | join(",")' $jsonFile)
     forwarders_bind=$(jq -c -r '.gw.dns_forwarders | join(";")' $jsonFile)
     networks=$(jq -c -r .sddc.vcenter.networks $jsonFile)
-    cidr=$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
+    cidr=$(jq -c -r --arg arg "MANAGEMENT" 'sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
     IFS="." read -r -a octets <<< "$cidr"
     count=0
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
@@ -241,13 +241,13 @@ EOF
       rm -f "${iso_location}-${esxi}.iso"
       sed -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" \
           -e "s/\${ip_mgmt}/${esxi_ip}/" \
-          -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
-          -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
-          -e "s/\${dns_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
-          -e "s/\${ntp_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+          -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
+          -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
+          -e "s/\${dns_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+          -e "s/\${ntp_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
           -e "s/\${hostname}/${name}/" \
           -e "s/\${domain}/${domain}/" \
-          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
+          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
       echo "Building new ISO for ESXi ${esxi}"
       xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
       ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
@@ -424,17 +424,17 @@ EOF
     "networkSpecs": [
       {
         "networkType": "MANAGEMENT",
-        "subnet": "'$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
-        "gateway": "'$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
-        "vlanId": "'$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "subnet": "'$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "vlanId": "'$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
         "mtu": "9000",
         "portGroupKey": "'${basename_sddc}'-pg-mgmt"
       },
       {
         "networkType": "VMOTION",
-        "subnet": "'$(jq -c -r --arg arg "VMOTION" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
-        "gateway": "'$(jq -c -r --arg arg "VMOTION" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
-        "vlanId": "'$(jq -c -r --arg arg "VMOTION" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "subnet": "'$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "vlanId": "'$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
         "mtu": "9000",
         "portGroupKey": "'${basename_sddc}'-pg-vmotion",
         "includeIpAddressRanges": [
@@ -446,9 +446,9 @@ EOF
       },
       {
         "networkType": "VSAN",
-        "subnet": "'$(jq -c -r --arg arg "VSAN" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
-        "gateway": "'$(jq -c -r --arg arg "VSAN" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
-        "vlanId": "'$(jq -c -r --arg arg "VSAN" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "subnet": "'$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "vlanId": "'$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
         "mtu": "9000",
         "portGroupKey": "'${basename_sddc}'-pg-vsan",
         "includeIpAddressRanges": [
@@ -460,9 +460,9 @@ EOF
       },
       {
         "networkType": "VM_MANAGEMENT",
-        "subnet": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
-        "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
-        "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "subnet": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
         "mtu": "9000",
         "portGroupKey": "'${basename_sddc}'-pg-vm-mgmt"
       }
@@ -476,7 +476,7 @@ EOF
       "vip": "'${ip_nsx_vip}'",
       "vipFqdn": "'${basename_sddc}''${basename_nsx_manager}'vip",
       "nsxtLicense": null,
-      "transportVlanId": "'$(jq -c -r --arg arg "OVERLAY" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+      "transportVlanId": "'$(jq -c -r --arg arg "OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
       "ipAddressPoolSpec": {
         "name": "'${basename_sddc}'-ip-addr-pool",
         "description": "ESXi Host Overlay TEP IP Pool",
@@ -488,8 +488,8 @@ EOF
                 "end": "'$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f2 -d'-')'"
               }
             ],
-            "cidr": "'$(jq -c -r --arg arg "OVERLAY" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
-            "gateway": "'$(jq -c -r --arg arg "OVERLAY" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'"
+            "cidr": "'$(jq -c -r --arg arg "OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+            "gateway": "'$(jq -c -r --arg arg "OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'"
           }
         ]
       }
