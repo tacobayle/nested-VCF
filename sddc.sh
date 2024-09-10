@@ -370,6 +370,56 @@ EOF
     gw_ip=$(jq -c -r .gw.ip $jsonFile)
     ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
   done
+  #
+  #
+  echo '------------------------------------------------------------' | tee -a ${log_file}
+  echo "Cloud Builder JSON file creation  - This should take 2 minutes" | tee -a ${log_file}
+  vcenter_json='
+  {
+    "vsanSpec":
+    {
+      "licenseFile": '$(jq .vsan.license ${jsonFile})',
+      "vsanDedup": "false",
+      "esaConfig":
+      {
+        "enabled": false
+      },
+      "datastoreName": "'${folder}'-vsan"
+    },
+    "clusterSpec":
+    {
+      "clusterName": "'${folder}'-cluster",
+      "clusterEvcMode": "",
+      "clusterImageEnabled": true,
+      "vmFolders":
+        {
+          "MANAGEMENT": "'${folder}'-mgmt",
+          "NETWORKING": "'${folder}'-nsx",
+          "EDGENODES": "'${folder}'-edge"
+        }
+    },
+    "pscSpecs":
+    [
+      {
+        "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
+        "pscSsoSpec":
+      {
+        "ssoDomain": '$(jq .vcenter.ssoDomain ${jsonFile})'
+      }
+    }
+    ],
+    "vcenterSpec":
+    {
+      "vcenterIp": '$(jq .vcenter.ip ${jsonFile})',
+      "vcenterHostname": '$(jq .vcenter.hostname ${jsonFile})',
+      "licenseFile": '$(jq .vcenter.license ${jsonFile})',
+      "vmSize": '$(jq .vcenter.vmSize ${jsonFile})',
+      "storageSize": '$(jq .vcenter.storageSize ${jsonFile})',
+      "rootVcenterPassword": "'${NESTED_VCENTER_PASSWORD}'"
+    },
+    "hostSpecs": '$(jq -c -r . /root/hostSpecs.json)'
+  }'
+  echo ${vcenter_json} | jq . -c -r | tee /root/vcenter.json
 fi
 #
 #
