@@ -260,11 +260,6 @@ EOF
   done
   govc cluster.rule.create -name "${folder}-affinity-rule" -enable -affinity ${names}
   echo ${hostSpecs} | jq -c -r . | tee /root/hostSpecs.json
-  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
-  do
-    gw_ip=$(jq -c -r .gw.ip $jsonFile)
-    ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
-  done
   #
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
@@ -356,16 +351,25 @@ EOF
     count=1
     until $(curl --output /dev/null --silent --head -k https://$(jq -c -r .ip $jsonFile))
     do
-      echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip} to be reachable..."
+      echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip} to be reachable..." | tee -a ${log_file}
       sleep 30
       count=$((count+1))
       if [[ "${count}" -eq 30 ]]; then
-        echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip} to be reachable after ${count} Attempts"
+        echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip} to be reachable after ${count} Attempts" | tee -a ${log_file}
         exit 1
       fi
     done
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
   fi
+  #
+  #
+  echo '------------------------------------------------------------' | tee -a ${log_file}
+  echo "ESXI customization  - This should take 2 minutes" | tee -a ${log_file}
+  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  do
+    gw_ip=$(jq -c -r .gw.ip $jsonFile)
+    ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
+  done
 fi
 #
 #
