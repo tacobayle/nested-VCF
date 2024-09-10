@@ -55,6 +55,7 @@ write_files:
       done
       echo "    version: 2" | tee -a /etc/netplan/50-cloud-init.yaml
       netplan apply
+      sysctl -w net.ipv4.ip_forward=1
       apt update
       apt install -y expect
       curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
