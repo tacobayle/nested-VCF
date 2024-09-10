@@ -389,6 +389,70 @@ EOF
       "datastoreName": "'${folder}'-vsan"
     },
     "dvsSpecs": [
+      {
+        "dvsName": "'${folder}'-vds-01",
+        "vmnics": [
+          "vmnic0",
+          "vmnic1"
+        ],
+        "mtu": 9000,
+        "networks": [
+          "MANAGEMENT",
+          "VMOTION",
+          "VSAN",
+          "VM_MANAGEMENT"
+        ],
+        "niocSpecs": [
+          {
+            "trafficType": "VSAN",
+            "value": "HIGH"
+          },
+          {
+            "trafficType": "VMOTION",
+            "value": "LOW"
+          },
+          {
+            "trafficType": "VDP",
+            "value": "LOW"
+          },
+          {
+            "trafficType": "VIRTUALMACHINE",
+            "value": "HIGH"
+          },
+          {
+            "trafficType": "MANAGEMENT",
+            "value": "NORMAL"
+          },
+          {
+            "trafficType": "NFS",
+            "value": "LOW"
+          },
+          {
+            "trafficType": "HBR",
+            "value": "LOW"
+          },
+          {
+            "trafficType": "FAULTTOLERANCE",
+            "value": "LOW"
+          },
+          {
+            "trafficType": "ISCSI",
+            "value": "LOW"
+          }
+        ],
+        "nsxtSwitchConfig": {
+          "transportZones": [
+            {
+              "name": "'${folder}'-tz-overlay",
+              "transportType": "OVERLAY"
+            },
+            {
+              "name": "'${folder}'-tz-vlan",
+              "transportType": "VLAN"
+            }
+          ]
+        }
+      }
     ],
     "clusterSpec":
     {
@@ -401,64 +465,6 @@ EOF
         "EDGENODES": "'${folder}'-folder-edge"
       }
     },
-    "resourcePoolSpecs": [
-      {
-        "name": "'${folder}'-rp-mgmt",
-        "type": "management",
-        "cpuReservationPercentage": 0,
-        "cpuLimit": -1,
-        "cpuReservationExpandable": true,
-        "cpuSharesLevel": "normal",
-        "cpuSharesValue": 0,
-        "memoryReservationMb": 0,
-        "memoryLimit": -1,
-        "memoryReservationExpandable": true,
-        "memorySharesLevel": "normal",
-        "memorySharesValue": 0
-      },
-      {
-        "name": "'${folder}'-rp-edge",
-        "type": "network",
-        "cpuReservationPercentage": 0,
-        "cpuLimit": -1,
-        "cpuReservationExpandable": true,
-        "cpuSharesLevel": "normal",
-        "cpuSharesValue": 0,
-        "memoryReservationMb": 0,
-        "memoryLimit": -1,
-        "memoryReservationExpandable": true,
-        "memorySharesLevel": "normal",
-        "memorySharesValue": 0
-      },
-      {
-        "name": "'${folder}'-rp-user-edge",
-        "type": "compute",
-        "cpuReservationPercentage": 0,
-        "cpuLimit": -1,
-        "cpuReservationExpandable": true,
-        "cpuSharesLevel": "normal",
-        "cpuSharesValue": 0,
-        "memoryReservationMb": 0,
-        "memoryLimit": -1,
-        "memoryReservationExpandable": true,
-        "memorySharesLevel": "normal",
-        "memorySharesValue": 0
-      },
-      {
-        "name": "'${folder}'-rp-user-vm",
-        "type": "compute",
-        "cpuReservationPercentage": 0,
-        "cpuLimit": -1,
-        "cpuReservationExpandable": true,
-        "cpuSharesLevel": "normal",
-        "cpuSharesValue": 0,
-        "memoryReservationMb": 0,
-        "memoryLimit": -1,
-        "memoryReservationExpandable": true,
-        "memorySharesLevel": "normal",
-        "memorySharesValue": 0
-      }
-    ],
     "pscSpecs": [
       {
         "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
