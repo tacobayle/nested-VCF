@@ -121,3 +121,21 @@ amount_of_ip_by_prefix () {
   if [[ $1 == "2" ]] ; then echo  "1073741822" ; fi
   if [[ $1 == "1" ]] ; then echo  "2147483646" ; fi
 }
+
+remove_last_octet() {
+  local ip="$1"
+  local parts=(${ip//./ })
+
+  if [[ ${#parts[@]} -ne 4 ]]; then
+    echo "Invalid IP address: $ip"
+    return 1
+  fi
+
+  # Remove the last element from the array
+  unset parts[3]
+
+  # Join the remaining elements with dots
+  ip="${parts[*]}"
+  ip="${ip// /.}"
+  echo "$ip"
+}

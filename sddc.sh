@@ -24,6 +24,14 @@ folder=$(jq -c -r .folder $jsonFile)
 gw_name=$(jq -c -r .gw.name $jsonFile)
 basename=$(jq -c -r .esxi.basename $jsonFile)
 ips=$(jq -c -r .esxi.ips $jsonFile)
+basename_sddc=$(jq -c -r .sddc.basename $jsonFile)
+basename_nsx_manager="-nsx-manager-"
+ips_nsx=$(jq -c -r .sddc.nsx.ips $jsonFile)
+ip_nsx_vip=$(jq -c -r .sddc.nsx.vip ${jsonFile})
+ip_sddc_manager=$(jq -c -r .sddc.manager.ip ${jsonFile})
+domain=$(jq -c -r .domain $jsonFile)
+ip_gw=$(jq -c -r .gw.ip $jsonFile)
+ip_vcsa=$(jq -c -r .sddc.vcenter.ip ${jsonFile})
 #
 echo "Starting timestamp: $(date)" | tee -a ${log_file}
 source /nested-vcf/bash/govc/load_govc_external.sh
@@ -39,7 +47,7 @@ if [[ ${operation} == "apply" ]] ; then
     echo "ERROR: unable to create folder ${folder}: it already exists" | tee -a ${log_file}
   else
     govc folder.create /${vsphere_dc}/vm/${folder} | tee -a ${log_file}
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: vsphere external folder '${folder}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: vsphere external folder '${folder}' created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   fi
   #
   #
@@ -48,28 +56,26 @@ if [[ ${operation} == "apply" ]] ; then
   # ova download
   ova_url=$(jq -c -r .gw.ova_url $jsonFile)
   download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "Ubuntu OVA"
-  if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Ubuntu OVA downloaded"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Ubuntu OVA downloaded"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   #
   if [[ ${list_gw} != "null" ]] ; then
     echo "ERROR: unable to create VM ${gw_name}: it already exists" | tee -a ${log_file}
   else
     network_ref=$(jq -c -r .gw.network_ref $jsonFile)
-    ip=$(jq -c -r .gw.ip $jsonFile)
     prefix=$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2)
     default_gw=$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)
     ntp_masters=$(jq -c -r .gw.ntp_masters $jsonFile)
     forwarders_netplan=$(jq -c -r '.gw.dns_forwarders | join(",")' $jsonFile)
     forwarders_bind=$(jq -c -r '.gw.dns_forwarders | join(";")' $jsonFile)
-    networks=$(jq -c -r .vcenter.networks $jsonFile)
-    domain=$(jq -c -r .domain $jsonFile)
+    networks=$(jq -c -r .sddc.vcenter.networks $jsonFile)
     cidr=$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
     IFS="." read -r -a octets <<< "$cidr"
     count=0
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
     reverse=${addr%.}
     basename=$(jq -c -r .esxi.basename $jsonFile)
-    sed -e "s/\${password}/${external_gw_password}/" \
-        -e "s/\${ip}/${ip}/" \
+    sed -e "s/\${password}/${EXTERNAL_GW_PASSWORD}/" \
+        -e "s/\${ip_gw}/${ip_gw}/" \
         -e "s/\${prefix}/${prefix}/" \
         -e "s/\${default_gw}/${default_gw}/" \
         -e "s/\${ntp_masters}/${ntp_masters}/" \
@@ -77,6 +83,12 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${domain}/${domain}/g" \
         -e "s/\${reverse}/${reverse}/g" \
         -e "s/\${ips}/${ips}/" \
+        -e "s/\${basename_sddc}/${basename_sddc}/" \
+        -e "s/\${basename_nsx_manager}/${basename_nsx_manager}/" \
+        -e "s/\${ip_nsx_vip}/${ip_nsx_vip}/" \
+        -e "s/\${ips_nsx}/${ips_nsx}/" \
+        -e "s/\${ip_sddc_manager}/${ip_sddc_manager}/" \
+        -e "s/\${ip_vcsa}/${ip_vcsa}/" \
         -e "s@\${networks}@${networks}@" \
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
         -e "s/\${basename}/${basename}/" \
@@ -109,7 +121,7 @@ if [[ ${operation} == "apply" ]] ; then
         },
         {
           "Key": "password",
-          "Value": "'${external_gw_password}'"
+          "Value": "'${EXTERNAL_GW_PASSWORD}'"
         }
       ],
       "NetworkMapping": [
@@ -129,28 +141,28 @@ if [[ ${operation} == "apply" ]] ; then
     trunk1=$(jq -c -r .esxi.nics[0] $jsonFile)
     govc vm.network.add -vm "${folder}/${gw_name}" -net "${trunk1}" -net.adapter vmxnet3 | tee -a ${log_file}
     govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     # ssh check
     retry=60
     pause=10
     attempt=1
     while true ; do
       echo "attempt $attempt to verify ssh to gw ${gw_name}" | tee -a ${log_file}
-      ssh -o StrictHostKeyChecking=no "ubuntu@${ip}" -q >/dev/null 2>&1
+      ssh -o StrictHostKeyChecking=no "ubuntu@${ip_gw}" -q >/dev/null 2>&1
       if [[ $? -eq 0 ]]; then
         echo "Gw ${gw_name} is reachable."
-        if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM reachable"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
         for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
         do
           esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
           sed -e "s/\${esxi_ip}/${esxi_ip}/" \
-              -e "s/\${nested_esxi_root_password}/${NESTED_ESXI_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
-          scp -o StrictHostKeyChecking=no /root/cert-esxi-$esxi.expect ubuntu@${ip}:/home/ubuntu/cert-esxi-$esxi.expect
+              -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
+          scp -o StrictHostKeyChecking=no /root/cert-esxi-$esxi.expect ubuntu@${ip_gw}:/home/ubuntu/cert-esxi-$esxi.expect
           tee /root/esxi_check_${esxi}.sh > /dev/null <<EOF
           #!/bin/bash
           #
-          slack_webhook_url=${slack_webhook_url}
-          export GOVC_PASSWORD=${NESTED_ESXI_PASSWORD}
+          SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+          export GOVC_PASSWORD=${ESXI_PASSWORD}
           export GOVC_INSECURE=true
           export GOVC_URL=${esxi_ip}
           export GOVC_USERNAME=root
@@ -163,21 +175,21 @@ if [[ ${operation} == "apply" ]] ; then
             count=\$((count+1))
             if [[ "\${count}" -eq 10 ]]; then
               echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
-              if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} unable to reach"}' \${slack_webhook_url} >/dev/null 2>&1; fi
+              if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} unable to reach"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
               exit
             fi
           done
           chmod u+x /home/ubuntu/cert-esxi-${esxi}.expect
           /home/ubuntu/cert-esxi-${esxi}.expect
-          if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert"}' \${slack_webhook_url} >/dev/null 2>&1; fi
+          if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
           sleep 30
           govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
           do
             govc host.storage.mark -ssd \${item}
-            if [ -z "\${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} disks '\${item}' marked as SSD"}' \${slack_webhook_url} >/dev/null 2>&1; fi
+            if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} disks '\${item}' marked as SSD"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
           done
 EOF
-          scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip}:/home/ubuntu/esxi_check_${esxi}.sh
+          scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_check_${esxi}.sh
         done
         break
       fi
@@ -196,7 +208,7 @@ EOF
   echo "Creation of an ESXi hosts on the underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
   iso_url=$(jq -c -r .esxi.iso_url $jsonFile)
   download_file_from_url_to_location "${iso_url}" "/root/$(basename ${iso_url})" "ESXi ISO"
-  if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXI downloaded"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXI downloaded"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   #
   iso_mount_location="/tmp/esxi_cdrom_mount"
   iso_build_location="/tmp/esxi_cdrom"
@@ -222,12 +234,12 @@ EOF
       echo '{"esxi_trunk": '${net}'}' | tee /root/esxi_trunk.json
       esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
       domain=$(jq -c -r .domain $jsonFile)
-      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${NESTED_ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
       echo "Building custom ESXi ISO for ESXi${esxi}"
       rm -f ${iso_build_location}/ks_cust.cfg
       rm -f "${iso_location}-${esxi}.iso"
-      sed -e "s/\${nested_esxi_root_password}/${NESTED_ESXI_PASSWORD}/" \
+      sed -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" \
           -e "s/\${ip_mgmt}/${esxi_ip}/" \
           -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
           -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
@@ -241,7 +253,7 @@ EOF
       ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
       dc=$(jq -c -r .vsphere_underlay.datacenter $jsonFile)
       govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" test20240902/$(basename ${iso_location}-${esxi}.iso) | tee -a ${log_file}
-      if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXi '${esxi}' uploaded "}' ${slack_webhook_url} >/dev/null 2>&1; fi
+      if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: ISO ESXi '${esxi}' uploaded "}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
       cpu=$(jq -c -r .esxi.cpu $jsonFile)
       memory=$(jq -c -r .esxi.memory $jsonFile)
       disk_os_size=$(jq -c -r .esxi.disk_os_size $jsonFile)
@@ -257,11 +269,10 @@ EOF
       net=$(jq -c -r .esxi.nics[1] $jsonFile)
       govc vm.network.add -vm "${folder}/${name}" -net ${net} -net.adapter vmxnet3 | tee -a ${log_file}
       govc vm.power -on=true "${folder}/${name}" | tee -a ${log_file}
-      if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+      if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     fi
   done
   govc cluster.rule.create -name "${folder}-affinity-rule" -enable -affinity ${names}
-  echo ${hostSpecs} | jq -c -r . | tee /root/hostSpecs.json
   #
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
@@ -273,7 +284,7 @@ EOF
   network_ref=$(jq -c -r .cloud_builder.network_ref $jsonFile)
   #
   download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "VFC-Cloud_Builder OVA"
-  if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Cloud Builder OVA downloaded"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Cloud Builder OVA downloaded"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
     echo "cloud Builder VM already exists" | tee -a ${log_file}
   else
@@ -293,11 +304,11 @@ EOF
         },
         {
           "Key": "guestinfo.ADMIN_PASSWORD",
-          "Value": "'${cloud_builder_password}'"
+          "Value": "'${CLOUD_BUILDER_PASSWORD}'"
         },
         {
           "Key": "guestinfo.ROOT_PASSWORD",
-          "Value": "'${cloud_builder_password}'"
+          "Value": "'${CLOUD_BUILDER_PASSWORD}'"
         },
         {
           "Key": "guestinfo.hostname",
@@ -347,9 +358,9 @@ EOF
     '
     echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
     govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     govc vm.power -on=true "${name}" | tee -a ${log_file}
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     count=1
     until $(curl --output /dev/null --silent --head -k https://${ip_cb})
     do
@@ -361,7 +372,7 @@ EOF
         exit 1
       fi
     done
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   fi
   #
   #
@@ -369,43 +380,116 @@ EOF
   echo "ESXI customization  - This should take 2 minutes" | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
-    gw_ip=$(jq -c -r .gw.ip $jsonFile)
-    ssh -o StrictHostKeyChecking=no -t ubuntu@${gw_ip} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
+    ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
   done
   #
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Cloud Builder JSON file creation  - This should take 2 minutes" | tee -a ${log_file}
-  vcenter_json='
+  nsxtManagers="[]"
+  for nsx_count in $(seq 1 $(jq -c -r .sddc.nsx.ips '. | length' $jsonFile))
+  do
+    nsxtManager='{"hostname":"'${basename_sddc}''${basename_nsx_manager}''${nsx_count}'","ip":"'$(jq -c -r .sddc.nsx.ips[$(expr ${nsx_count} - 1)] $jsonFile)'"}'
+    nsxtManagers=$(echo ${nsxtManagers} | jq '. += ['${nsxtManager}']')
+  done
+  sddc_json_cb='
   {
+    "deployWithoutLicenseKeys": true,
+    "skipEsxThumbprintValidation": true,
+    "managementPoolName": "'${basename_sddc}'-mgmt-pool",
+    "sddcManagerSpec": {
+      "secondUserCredentials": {
+        "username": "vcf",
+        "password": "'${SDDC_MANAGER_PASSWORD}'"
+      },
+      "ipAddress": "'${ip_sddc_manager}'",
+      "hostname": "'${basename_sddc}'-sddc-manager",
+      "rootUserCredentials": {
+        "username": "root",
+        "password": "'${SDDC_MANAGER_PASSWORD}'"
+      },
+      "localUserPassword": "'${SDDC_MANAGER_PASSWORD}'"
+    },
+    "sddcId": "'${basename_sddc}'",
+    "esxLicense": null,
+    "workflowType": "VCF",
+    "ceipEnabled": false,
+    "fipsEnabled": false,
+    "ntpServers": ["'$(jq -c -r .gw.ip $jsonFile)'"],
+    "dnsSpec": {
+      "subdomain": "'${domain}'",
+      "domain": "'${domain}'",
+      "nameserver": "'${ip_gw}'"
+    },
+    "networkSpecs": [
+      {
+        "networkType": "MANAGEMENT",
+        "subnet": "'$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "vlanId": "'$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "mtu": "9000",
+        "portGroupKey": "'${basename_sddc}'-pg-mgmt"
+      },
+      {
+        "networkType": "VMOTION",
+        "subnet": "'$(jq -c -r --arg arg "VMOTION" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VMOTION" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "vlanId": "'$(jq -c -r --arg arg "VMOTION" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "mtu": "9000",
+        "portGroupKey": "'${basename_sddc}'-pg-vmotion",
+        "includeIpAddressRanges": [
+          {
+            "endIpAddress": "'$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f2 -d'-')'",
+            "startIpAddress": "'$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f1 -d'-')'"
+          }
+        ]
+      },
+      {
+        "networkType": "VSAN",
+        "subnet": "'$(jq -c -r --arg arg "VSAN" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VSAN" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "vlanId": "'$(jq -c -r --arg arg "VSAN" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "mtu": "9000",
+        "portGroupKey": "'${basename_sddc}'-pg-vsan",
+        "includeIpAddressRanges": [
+          {
+            "endIpAddress": "'$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f2 -d'-')'",
+            "startIpAddress": "'$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f1 -d'-')'"
+          }
+        ]
+      },
+      {
+        "networkType": "VM_MANAGEMENT",
+        "subnet": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
+        "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "mtu": "9000",
+        "portGroupKey": "'${basename_sddc}'-pg-vm-mgmt"
+      }
+    ],
     "nsxtSpec": {
-      "nsxtManagerSize": "medium",
-      "nsxtManagers": [
-        {
-          "hostname": "vcf01-m01-nsx01",
-          "ip": "172.16.10.21"
-        }
-      ],
-      "rootNsxtManagerPassword": "",
-      "nsxtAdminPassword": "",
-      "nsxtAuditPassword": "",
-      "vip": "172.16.10.20",
-      "vipFqdn": "vcf01-m01-nsxvip",
+      "nsxtManagerSize": "'$(jq .sddc.nsx.size ${jsonFile})'",
+      "nsxtManagers": '${nsxtManagers}',
+      "rootNsxtManagerPassword": "'${NSX_PASSWORD}'",
+      "nsxtAdminPassword": "'${NSX_PASSWORD}'",
+      "nsxtAuditPassword": "'${NSX_PASSWORD}'",
+      "vip": "'${ip_nsx_vip}'",
+      "vipFqdn": "'${basename_sddc}''${basename_nsx_manager}'vip",
       "nsxtLicense": null,
-      "transportVlanId": 1614,
+      "transportVlanId": "'$(jq -c -r --arg arg "OVERLAY" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
       "ipAddressPoolSpec": {
-        "name": "vcf01-m01-cl01-tep01",
+        "name": "'${basename_sddc}'-ip-addr-pool",
         "description": "ESXi Host Overlay TEP IP Pool",
         "subnets": [
           {
             "ipAddressPoolRanges": [
               {
-                "start": "172.16.14.101",
-                "end": "172.16.14.109"
+                "start": "'$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f1 -d'-')'",
+                "end": "'$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f2 -d'-')'"
               }
             ],
-            "cidr": "172.16.14.0/24",
-            "gateway": "172.16.14.1"
+            "cidr": "'$(jq -c -r --arg arg "OVERLAY" '.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+            "gateway": "'$(jq -c -r --arg arg "OVERLAY" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'"
           }
         ]
       }
@@ -418,11 +502,11 @@ EOF
       {
         "enabled": false
       },
-      "datastoreName": "'${folder}'-vsan"
+      "datastoreName": "'${basename_sddc}'-vsan"
     },
     "dvsSpecs": [
       {
-        "dvsName": "'${folder}'-vds-01",
+        "dvsName": "'${basename_sddc}'-vds-01",
         "vmnics": [
           "vmnic0",
           "vmnic1"
@@ -475,11 +559,11 @@ EOF
         "nsxtSwitchConfig": {
           "transportZones": [
             {
-              "name": "'${folder}'-tz-overlay",
+              "name": "'${basename_sddc}'-tz-overlay",
               "transportType": "OVERLAY"
             },
             {
-              "name": "'${folder}'-tz-vlan",
+              "name": "'${basename_sddc}'-tz-vlan",
               "transportType": "VLAN"
             }
           ]
@@ -488,34 +572,33 @@ EOF
     ],
     "clusterSpec":
     {
-      "clusterName": "'${folder}'-cluster",
+      "clusterName": "'${basename_sddc}'-cluster",
       "clusterEvcMode": "",
       "clusterImageEnabled": true,
       "vmFolders": {
-        "MANAGEMENT": "'${folder}'-folder-mgmt",
-        "NETWORKING": "'${folder}'-folder-nsx",
-        "EDGENODES": "'${folder}'-folder-edge"
+        "MANAGEMENT": "'${basename_sddc}'-folder-mgmt",
+        "NETWORKING": "'${basename_sddc}'-folder-nsx",
+        "EDGENODES": "'${basename_sddc}'-folder-edge"
       }
     },
     "pscSpecs": [
       {
-        "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
+        "adminUserSsoPassword": "'${VCENTER_PASSWORD}'",
         "pscSsoSpec": {
-          "ssoDomain": '$(jq .vcenter.ssoDomain ${jsonFile})'
+          "ssoDomain": '$(jq .sddc.vcenter.ssoDomain ${jsonFile})'
         }
       }
     ],
     "vcenterSpec": {
-      "vcenterIp": '$(jq .vcenter.ip ${jsonFile})',
-      "vcenterHostname": '$(jq .vcenter.hostname ${jsonFile})',
-      "licenseFile": '$(jq .vcenter.license ${jsonFile})',
-      "vmSize": '$(jq .vcenter.vmSize ${jsonFile})',
-      "storageSize": '$(jq .vcenter.storageSize ${jsonFile})',
-      "rootVcenterPassword": "'${NESTED_VCENTER_PASSWORD}'"
+      "vcenterIp": "'${ip_vcsa}'",
+      "vcenterHostname": "'${basename_sddc}'-vcsa",
+      "vmSize": '$(jq .sddc.vcenter.vmSize ${jsonFile})',
+      "storageSize": null,
+      "rootVcenterPassword": "'${VCENTER_PASSWORD}'"
     },
-    "hostSpecs": '$(jq -c -r . /root/hostSpecs.json)'
+    "hostSpecs": '${hostSpecs}'
   }'
-  echo ${vcenter_json} | jq . -c -r | tee /root/vcenter.json
+  echo ${sddc_json_cb} | jq . -c -r | tee /root/${basename_sddc}_cb.json
 fi
 #
 #
@@ -528,7 +611,7 @@ if [[ ${operation} == "destroy" ]] ; then
   if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
     govc vm.power -off=true "${folder}/${name}" | tee -a ${log_file}
     govc vm.destroy "${folder}/${name}" | tee -a ${log_file}
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM powered off and destroyed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   fi
   echo '------------------------------------------------------------' | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
@@ -538,8 +621,7 @@ if [[ ${operation} == "destroy" ]] ; then
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
       govc vm.power -off=true "${folder}/${name}"
       govc vm.destroy "${folder}/${name}"
-      rm -f /root/hostSpecs.json
-      if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+      if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi '${esxi}' destroyed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     else
       echo "ERROR: unable to delete ESXi ${name}: it is already gone" | tee -a ${log_file}
     fi
@@ -551,7 +633,7 @@ if [[ ${operation} == "destroy" ]] ; then
   if [[ ${list_gw} != "null" ]] ; then
     govc vm.power -off=true "${gw_name}" | tee -a ${log_file}
     govc vm.destroy "${gw_name}" | tee -a ${log_file}
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM powered off and destroyed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM powered off and destroyed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   else
     echo "ERROR: unable to delete VM ${gw_name}: it already exists" | tee -a ${log_file}
   fi
@@ -562,7 +644,7 @@ if [[ ${operation} == "destroy" ]] ; then
   echo "Deletion of a folder on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
   if $(echo ${list_folder} | jq -e '. | any(. == "./vm/'${folder}'")' >/dev/null ) ; then
     govc object.destroy /${vsphere_dc}/vm/${folder} | tee -a ${log_file}
-    if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: vsphere external folder '${folder}' removed"}' ${slack_webhook_url} >/dev/null 2>&1; fi
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: vsphere external folder '${folder}' removed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   else
     echo "ERROR: unable to delete folder ${folder}: it does not exist" | tee -a ${log_file}
   fi

@@ -20,13 +20,13 @@ write_files:
       ifaceLastName=`ip -o link show | awk -F': ' '{print $2}' | head -3 | tail -1`
       macLast=`ip -o link show | awk -F'link/ether ' '{print $2}' | awk -F' ' '{print $1}' | head -3 | tail -1`
       hostname=${hostname}
-      echo "${ip} $hostname" | tee -a /etc/hosts
+      echo "${ip_gw} $hostname" | tee -a /etc/hosts
       cp /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.old
       echo "network:" | tee /etc/netplan/50-cloud-init.yaml
       echo "    ethernets:" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "        $ifaceFirstName:" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "            dhcp4: false" | tee -a /etc/netplan/50-cloud-init.yaml
-      echo "            addresses: [${ip}/${prefix}]" | tee -a /etc/netplan/50-cloud-init.yaml
+      echo "            addresses: [${ip_gw}/${prefix}]" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "            match:" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "                macaddress: $macFirst" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "            set-name: $ifaceFirstName" | tee -a /etc/netplan/50-cloud-init.yaml
@@ -116,7 +116,10 @@ write_files:
                                       )
                               NS      dns.${domain}.
       \$ORIGIN ${domain}.
-      dns       IN            A       ${ip}
+      dns       IN            A       ${ip_gw}
+      ${basename_sddc}${basename_nsx_manager}vip       IN            A       ${ip_nsx_vip}
+      ${basename_sddc}-sddc-manager       IN            A       ${ip_sddc_manager}
+      ${basename_sddc}-vcsa       IN            A       ${ip_vcsa}
       EOT
       #
       count_esxi=1
@@ -124,6 +127,13 @@ write_files:
       do
         echo "${basename}$count_esxi      IN            A       ${ip_esxi}" | tee -a /var/lib/bind/db.${domain}
         ((count_esxi++))
+      done
+      #
+      count_nsx=1
+      echo '${ips_nsx}' | jq -c -r .[] | while read ip_nsx
+      do
+        echo "${basename_sddc}${basename_nsx_manager}$count_nsx      IN            A       ${ip_nsx}" | tee -a /var/lib/bind/db.${domain}
+        ((count_nsx++))
       done
       #
       sudo tee /var/lib/bind/db.${reverse} > /dev/null <<EOT
@@ -139,12 +149,24 @@ write_files:
                               NS      dns.${domain}.
       \$ORIGIN ${reverse}.in-addr.arpa.
       EOT
+      echo "`echo '${ip_nsx_vip}' | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}vip.${domain}." | tee -a /var/lib/bind/db.${reverse}
+      echo "`echo '${ip_vcsa}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-vcsa.${domain}." | tee -a /var/lib/bind/db.${reverse}
+      echo "`echo '${ip_sddc_manager}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-sddc-manager.${domain}." | tee -a /var/lib/bind/db.${reverse}
+      #
       count_esxi=1
       echo '${ips}' | jq -c -r .[] | while read ip_esxi
       do
         echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename}$count_esxi.${domain}." | tee -a /var/lib/bind/db.${reverse}
         ((count_esxi++))
       done
+      #
+      count_nsx=1
+      echo '${ips_nsx}' | jq -c -r .[] | while read ip_nsx
+      do
+        echo "`echo $ip_nsx | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}$count_nsx.${domain}." | tee -a /var/lib/bind/db.${reverse}
+        ((count_nsx++))
+      done
+      #
       systemctl restart bind9.service
       #
       # NTP config
