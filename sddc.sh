@@ -131,7 +131,7 @@ if [[ ${operation} == "apply" ]] ; then
     govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${slack_webhook_url} >/dev/null 2>&1; fi
     # ssh check
-    retry=6
+    retry=60
     pause=10
     attempt=1
     while true ; do
@@ -221,6 +221,7 @@ EOF
       net=$(jq -c -r .esxi.nics[0] $jsonFile)
       echo '{"esxi_trunk": '${net}'}' | tee /root/esxi_trunk.json
       esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
+      domain=$(jq -c -r .domain $jsonFile)
       hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${NESTED_ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
       echo "Building custom ESXi ISO for ESXi${esxi}"
@@ -232,7 +233,8 @@ EOF
           -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
           -e "s/\${dns_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
           -e "s/\${ntp_servers}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
-          -e "s/\${hostname}/${name}${esxi}/" \
+          -e "s/\${hostname}/${name}/" \
+          -e "s/\${domain}/${domain}/" \
           -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
       echo "Building new ISO for ESXi ${esxi}"
       xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
@@ -386,30 +388,86 @@ EOF
       },
       "datastoreName": "'${folder}'-vsan"
     },
+    "dvsSpecs": [
+    ],
     "clusterSpec":
     {
       "clusterName": "'${folder}'-cluster",
       "clusterEvcMode": "",
       "clusterImageEnabled": true,
-      "vmFolders":
-        {
-          "MANAGEMENT": "'${folder}'-mgmt",
-          "NETWORKING": "'${folder}'-nsx",
-          "EDGENODES": "'${folder}'-edge"
-        }
+      "vmFolders": {
+        "MANAGEMENT": "'${folder}'-folder-mgmt",
+        "NETWORKING": "'${folder}'-folder-nsx",
+        "EDGENODES": "'${folder}'-folder-edge"
+      }
     },
-    "pscSpecs":
-    [
+    "resourcePoolSpecs": [
+      {
+        "name": "'${folder}'-rp-mgmt",
+        "type": "management",
+        "cpuReservationPercentage": 0,
+        "cpuLimit": -1,
+        "cpuReservationExpandable": true,
+        "cpuSharesLevel": "normal",
+        "cpuSharesValue": 0,
+        "memoryReservationMb": 0,
+        "memoryLimit": -1,
+        "memoryReservationExpandable": true,
+        "memorySharesLevel": "normal",
+        "memorySharesValue": 0
+      },
+      {
+        "name": "'${folder}'-rp-edge",
+        "type": "network",
+        "cpuReservationPercentage": 0,
+        "cpuLimit": -1,
+        "cpuReservationExpandable": true,
+        "cpuSharesLevel": "normal",
+        "cpuSharesValue": 0,
+        "memoryReservationMb": 0,
+        "memoryLimit": -1,
+        "memoryReservationExpandable": true,
+        "memorySharesLevel": "normal",
+        "memorySharesValue": 0
+      },
+      {
+        "name": "'${folder}'-rp-user-edge",
+        "type": "compute",
+        "cpuReservationPercentage": 0,
+        "cpuLimit": -1,
+        "cpuReservationExpandable": true,
+        "cpuSharesLevel": "normal",
+        "cpuSharesValue": 0,
+        "memoryReservationMb": 0,
+        "memoryLimit": -1,
+        "memoryReservationExpandable": true,
+        "memorySharesLevel": "normal",
+        "memorySharesValue": 0
+      },
+      {
+        "name": "'${folder}'-rp-user-vm",
+        "type": "compute",
+        "cpuReservationPercentage": 0,
+        "cpuLimit": -1,
+        "cpuReservationExpandable": true,
+        "cpuSharesLevel": "normal",
+        "cpuSharesValue": 0,
+        "memoryReservationMb": 0,
+        "memoryLimit": -1,
+        "memoryReservationExpandable": true,
+        "memorySharesLevel": "normal",
+        "memorySharesValue": 0
+      }
+    ],
+    "pscSpecs": [
       {
         "adminUserSsoPassword": "'${NESTED_VCENTER_PASSWORD}'",
-        "pscSsoSpec":
-      {
-        "ssoDomain": '$(jq .vcenter.ssoDomain ${jsonFile})'
+        "pscSsoSpec": {
+          "ssoDomain": '$(jq .vcenter.ssoDomain ${jsonFile})'
+        }
       }
-    }
     ],
-    "vcenterSpec":
-    {
+    "vcenterSpec": {
       "vcenterIp": '$(jq .vcenter.ip ${jsonFile})',
       "vcenterHostname": '$(jq .vcenter.hostname ${jsonFile})',
       "licenseFile": '$(jq .vcenter.license ${jsonFile})',

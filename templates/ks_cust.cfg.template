@@ -14,7 +14,7 @@ install --ignoressd --firstdisk --overwritevmfs --ignoreprereqwarnings --ignorep
 keyboard 'US Default'
 
 # Set the network to fixed IP address on the first network adapter
-network --bootproto=static --device=vmnic0 --ip=${ip_mgmt} --netmask=${netmask} --nameserver=${dns_servers} --hostname=${hostname} --gateway=${gateway} --vlanid=${vlan_id}
+network --bootproto=static --device=vmnic0 --ip=${ip_mgmt} --netmask=${netmask} --nameserver=${dns_servers} --hostname=${hostname}.${domain} --gateway=${gateway} --vlanid=${vlan_id}
 
 reboot
 
