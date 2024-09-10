@@ -265,7 +265,7 @@ EOF
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
   name=$(jq -c -r .cloud_builder.name $jsonFile)
-  ip=$(jq -c -r .cloud_builder.ip $jsonFile)
+  ip_cb=$(jq -c -r .cloud_builder.ip $jsonFile)
   ip_gw=$(jq -c -r .gw.ip $jsonFile)
   ova_url=$(jq -c -r .cloud_builder.ova_url $jsonFile)
   network_ref=$(jq -c -r .cloud_builder.network_ref $jsonFile)
@@ -303,7 +303,7 @@ EOF
         },
         {
           "Key": "guestinfo.ip0",
-          "Value": "'${ip}'"
+          "Value": "'${ip_cb}'"
         },
         {
           "Key": "guestinfo.netmask0",
@@ -349,13 +349,13 @@ EOF
     govc vm.power -on=true "${name}" | tee -a ${log_file}
     if [ -z "${slack_webhook_url}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${slack_webhook_url} >/dev/null 2>&1; fi
     count=1
-    until $(curl --output /dev/null --silent --head -k https://$(jq -c -r .ip $jsonFile))
+    until $(curl --output /dev/null --silent --head -k https://${ip_cb})
     do
-      echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip} to be reachable..." | tee -a ${log_file}
+      echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip_cb} to be reachable..." | tee -a ${log_file}
       sleep 30
       count=$((count+1))
       if [[ "${count}" -eq 30 ]]; then
-        echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip} to be reachable after ${count} Attempts" | tee -a ${log_file}
+        echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip_cb} to be reachable after ${count} Attempts" | tee -a ${log_file}
         exit 1
       fi
     done
