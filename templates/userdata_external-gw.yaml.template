@@ -37,6 +37,7 @@ write_files:
       echo "            match:" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "                macaddress: $macLast" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "            set-name: $ifaceLastName" | tee -a /etc/netplan/50-cloud-init.yaml
+      echo "            mtu: 9000" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "    version: 2" | tee -a /etc/netplan/50-cloud-init.yaml
       netplan apply
       apt update

@@ -378,6 +378,38 @@ EOF
   echo "Cloud Builder JSON file creation  - This should take 2 minutes" | tee -a ${log_file}
   vcenter_json='
   {
+    "nsxtSpec": {
+      "nsxtManagerSize": "medium",
+      "nsxtManagers": [
+        {
+          "hostname": "vcf01-m01-nsx01",
+          "ip": "172.16.10.21"
+        }
+      ],
+      "rootNsxtManagerPassword": "",
+      "nsxtAdminPassword": "",
+      "nsxtAuditPassword": "",
+      "vip": "172.16.10.20",
+      "vipFqdn": "vcf01-m01-nsxvip",
+      "nsxtLicense": null,
+      "transportVlanId": 1614,
+      "ipAddressPoolSpec": {
+        "name": "vcf01-m01-cl01-tep01",
+        "description": "ESXi Host Overlay TEP IP Pool",
+        "subnets": [
+          {
+            "ipAddressPoolRanges": [
+              {
+                "start": "172.16.14.101",
+                "end": "172.16.14.109"
+              }
+            ],
+            "cidr": "172.16.14.0/24",
+            "gateway": "172.16.14.1"
+          }
+        ]
+      }
+    },
     "vsanSpec":
     {
       "licenseFile": '$(jq .vsan.license ${jsonFile})',
