@@ -68,7 +68,7 @@ if [[ ${operation} == "apply" ]] ; then
     forwarders_netplan=$(jq -c -r '.gw.dns_forwarders | join(",")' $jsonFile)
     forwarders_bind=$(jq -c -r '.gw.dns_forwarders | join(";")' $jsonFile)
     networks=$(jq -c -r .sddc.vcenter.networks $jsonFile)
-    cidr=$(jq -c -r --arg arg "MANAGEMENT" 'sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
+    cidr=$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
     IFS="." read -r -a octets <<< "$cidr"
     count=0
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
@@ -415,7 +415,7 @@ EOF
     "workflowType": "VCF",
     "ceipEnabled": false,
     "fipsEnabled": false,
-    "ntpServers": ["'$(jq -c -r .gw.ip $jsonFile)'"],
+    "ntpServers": ["'${ip_gw}'"],
     "dnsSpec": {
       "subdomain": "'${domain}'",
       "domain": "'${domain}'",
@@ -462,7 +462,7 @@ EOF
         "networkType": "VM_MANAGEMENT",
         "subnet": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
         "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'",
-        "gateway": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+        "vlanId": "'$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
         "mtu": "9000",
         "portGroupKey": "'${basename_sddc}'-pg-vm-mgmt"
       }
