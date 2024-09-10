@@ -385,7 +385,7 @@ EOF
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Cloud Builder JSON file creation  - This should take 2 minutes" | tee -a ${log_file}
   nsxtManagers="[]"
-  for nsx_count in $(seq 1 $(jq -c -r .sddc.nsx.ips '. | length' $jsonFile))
+  for nsx_count in $(seq 1 $(jq -c -r '.sddc.nsx.ips | length' $jsonFile))
   do
     nsxtManager='{"hostname":"'${basename_sddc}''${basename_nsx_manager}''${nsx_count}'","ip":"'$(jq -c -r .sddc.nsx.ips[$(expr ${nsx_count} - 1)] $jsonFile)'"}'
     nsxtManagers=$(echo ${nsxtManagers} | jq '. += ['${nsxtManager}']')
@@ -466,7 +466,7 @@ EOF
       }
     ],
     "nsxtSpec": {
-      "nsxtManagerSize": "'$(jq .sddc.nsx.size ${jsonFile})'",
+      "nsxtManagerSize": "'$(jq -c -r .sddc.nsx.size ${jsonFile})'",
       "nsxtManagers": '${nsxtManagers}',
       "rootNsxtManagerPassword": "'${NSX_PASSWORD}'",
       "nsxtAdminPassword": "'${NSX_PASSWORD}'",
