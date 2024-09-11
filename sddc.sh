@@ -71,13 +71,13 @@ if [[ ${operation} == "apply" ]] ; then
     cidr=$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
     IFS="." read -r -a octets <<< "$cidr"
     count=0
-    for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
-    reverse_mgmt=${addr%.}
+    for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr_mgmt=$octet"."$addr_mgmt ;((count++)) ; done
+    reverse_mgmt=${addr_mgmt%.}
     cidr=$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
     IFS="." read -r -a octets <<< "$cidr"
     count=0
-    for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
-    reverse_vm_network=${addr%.}
+    for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr_vm_network=$octet"."$addr_vm_network ;((count++)) ; done
+    reverse_vm_network=${addr_vm_network%.}
     basename=$(jq -c -r .esxi.basename $jsonFile)
     sed -e "s/\${password}/${EXTERNAL_GW_PASSWORD}/" \
         -e "s/\${ip_gw}/${ip_gw}/" \
@@ -147,6 +147,11 @@ if [[ ${operation} == "apply" ]] ; then
     trunk1=$(jq -c -r .esxi.nics[0] $jsonFile)
     govc vm.network.add -vm "${folder}/${gw_name}" -net "${trunk1}" -net.adapter vmxnet3 | tee -a ${log_file}
     govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
+    echo "   +++ Updating /etc/hosts..." | tee -a ${log_file}
+    contents=$(cat /etc/hosts | grep -v ${ip_gw})
+    echo "${contents}" | tee /etc/hosts > /dev/null
+    contents="${ip_gw} gw"
+    echo "${contents}" | tee -a /etc/hosts > /dev/null
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: external-gw '${gw_name}' VM created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     # ssh check
     retry=60
