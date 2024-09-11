@@ -608,6 +608,11 @@ EOF
     "hostSpecs": '${hostSpecs}'
   }'
   echo ${sddc_json_cb} | jq . -c -r | tee /root/${basename_sddc}_cb.json
+  scp -o StrictHostKeyChecking=no /root/${basename_sddc}_cb.json ubuntu@${ip_gw}:/home/ubuntu/${basename_sddc}_cb.json
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /home/ubuntu/${basename_sddc}_cb.json" | tee -a ${log_file}
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: json for cloud builder generated"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
 fi
 #
 #

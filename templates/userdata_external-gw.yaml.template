@@ -201,6 +201,11 @@ write_files:
         echo "pool $ntp_master iburst" | tee -a /etc/chrony/chrony.conf
       done
       systemctl restart chrony.service
+      #
+      # HTTP config
+      #
+      apt install -y nginx
+      #
       echo "cloud init done" | tee /tmp/cloudInitDone.log
     path: /opt/bootstrap.sh
     permissions: 0755
