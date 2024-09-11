@@ -74,6 +74,7 @@ if [[ ${operation} == "apply" ]] ; then
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
     reverse_mgmt=${addr%.}
     cidr=$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
+    count=0
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
     reverse_vm_network=${addr%.}
     basename=$(jq -c -r .esxi.basename $jsonFile)
