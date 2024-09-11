@@ -191,7 +191,7 @@ if [[ ${operation} == "apply" ]] ; then
             fi
           done
           chmod u+x /home/ubuntu/cert-esxi-${esxi}.expect
-          /home/ubuntu/cert-esxi-${esxi}.expect
+          #/home/ubuntu/cert-esxi-${esxi}.expect
           if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
           sleep 30
           govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
