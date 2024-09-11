@@ -612,7 +612,7 @@ EOF
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /home/ubuntu/${basename_sddc}_cb.json" | tee -a ${log_file}
-  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: json for cloud builder generated"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: json for cloud builder generated and available at http://'${ip_gw}'/${basename_sddc}_cb.json"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
 fi
 #
 #
