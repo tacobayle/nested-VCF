@@ -338,7 +338,7 @@ EOF
         },
         {
           "Key": "guestinfo.ntp",
-          "Value": "'$(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).gw' $jsonFile)'"
+          "Value": "'${ip_gw}'"
         }
       ],
       "NetworkMapping": [
