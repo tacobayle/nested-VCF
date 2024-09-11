@@ -283,118 +283,8 @@ EOF
   done
   govc cluster.rule.create -name "${folder}-affinity-rule" -enable -affinity ${names}
   #
-  #
   echo '------------------------------------------------------------' | tee -a ${log_file}
-  echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
-  name=$(jq -c -r .cloud_builder.name $jsonFile)
-  ip_cb=$(jq -c -r .cloud_builder.ip $jsonFile)
-  ip_gw=$(jq -c -r .gw.ip $jsonFile)
-  ova_url=$(jq -c -r .cloud_builder.ova_url $jsonFile)
-  network_ref=$(jq -c -r .cloud_builder.network_ref $jsonFile)
-  #
-  download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "VFC-Cloud_Builder OVA"
-  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Cloud Builder OVA downloaded"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
-    echo "cloud Builder VM already exists" | tee -a ${log_file}
-  else
-    json_data='
-    {
-      "DiskProvisioning": "thin",
-      "IPAllocationPolicy": "fixedPolicy",
-      "IPProtocol": "IPv4",
-      "PropertyMapping": [
-        {
-          "Key": "FIPS_ENABLE",
-          "Value": "False"
-        },
-        {
-          "Key": "guestinfo.ADMIN_USERNAME",
-          "Value": "admin"
-        },
-        {
-          "Key": "guestinfo.ADMIN_PASSWORD",
-          "Value": "'${CLOUD_BUILDER_PASSWORD}'"
-        },
-        {
-          "Key": "guestinfo.ROOT_PASSWORD",
-          "Value": "'${CLOUD_BUILDER_PASSWORD}'"
-        },
-        {
-          "Key": "guestinfo.hostname",
-          "Value": "'${name}'"
-        },
-        {
-          "Key": "guestinfo.ip0",
-          "Value": "'${ip_cb}'"
-        },
-        {
-          "Key": "guestinfo.netmask0",
-          "Value": "'$(ip_netmask_by_prefix $(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")'"
-        },
-        {
-          "Key": "guestinfo.gateway",
-          "Value": "'${ip_gw}'"
-        },
-        {
-          "Key": "guestinfo.DNS",
-          "Value": "'${ip_gw}'"
-        },
-        {
-          "Key": "guestinfo.domain",
-          "Value": ""
-        },
-        {
-          "Key": "guestinfo.searchpath",
-          "Value": ""
-        },
-        {
-          "Key": "guestinfo.ntp",
-          "Value": "'${ip_gw}'"
-        }
-      ],
-      "NetworkMapping": [
-        {
-          "Name": "Network 1",
-          "Network": "'${network_ref}'"
-        }
-      ],
-      "MarkAsTemplate": false,
-      "PowerOn": false,
-      "InjectOvfEnv": false,
-      "WaitForIP": false,
-      "Name": "'${name}'"
-    }
-    '
-    echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
-    govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
-    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-    govc vm.power -on=true "${name}" | tee -a ${log_file}
-    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-    count=1
-    until $(curl --output /dev/null --silent --head -k https://${ip_cb})
-    do
-      echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip_cb} to be reachable..." | tee -a ${log_file}
-      sleep 30
-      count=$((count+1))
-      if [[ "${count}" -eq 30 ]]; then
-        echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip_cb} to be reachable after ${count} Attempts" | tee -a ${log_file}
-        exit 1
-      fi
-    done
-    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-  fi
-  #
-  #
-  echo '------------------------------------------------------------' | tee -a ${log_file}
-  echo "ESXI customization  - This should take 2 minutes" | tee -a ${log_file}
-  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
-  do
-    ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
-  done
-  #
-  #
-  echo '------------------------------------------------------------' | tee -a ${log_file}
-  echo "Cloud Builder JSON file creation  - This should take 2 minutes" | tee -a ${log_file}
+  echo "Cloud Builder JSON file creation  - This should take 1 minute" | tee -a ${log_file}
   nsxtManagers="[]"
   for nsx_count in $(seq 1 $(jq -c -r '.sddc.nsx.ips | length' $jsonFile))
   do
@@ -613,6 +503,114 @@ EOF
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /home/ubuntu/${basename_sddc}_cb.json" | tee -a ${log_file}
   if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: json for cloud builder generated and available at http://'${ip_gw}'/${basename_sddc}_cb.json"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+  #
+  echo '------------------------------------------------------------' | tee -a ${log_file}
+  echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
+  name=$(jq -c -r .cloud_builder.name $jsonFile)
+  ip_cb=$(jq -c -r .cloud_builder.ip $jsonFile)
+  ip_gw=$(jq -c -r .gw.ip $jsonFile)
+  ova_url=$(jq -c -r .cloud_builder.ova_url $jsonFile)
+  network_ref=$(jq -c -r .cloud_builder.network_ref $jsonFile)
+  #
+  download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "VFC-Cloud_Builder OVA"
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: Cloud Builder OVA downloaded"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
+    echo "cloud Builder VM already exists" | tee -a ${log_file}
+  else
+    json_data='
+    {
+      "DiskProvisioning": "thin",
+      "IPAllocationPolicy": "fixedPolicy",
+      "IPProtocol": "IPv4",
+      "PropertyMapping": [
+        {
+          "Key": "FIPS_ENABLE",
+          "Value": "False"
+        },
+        {
+          "Key": "guestinfo.ADMIN_USERNAME",
+          "Value": "admin"
+        },
+        {
+          "Key": "guestinfo.ADMIN_PASSWORD",
+          "Value": "'${CLOUD_BUILDER_PASSWORD}'"
+        },
+        {
+          "Key": "guestinfo.ROOT_PASSWORD",
+          "Value": "'${CLOUD_BUILDER_PASSWORD}'"
+        },
+        {
+          "Key": "guestinfo.hostname",
+          "Value": "'${name}'"
+        },
+        {
+          "Key": "guestinfo.ip0",
+          "Value": "'${ip_cb}'"
+        },
+        {
+          "Key": "guestinfo.netmask0",
+          "Value": "'$(ip_netmask_by_prefix $(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")'"
+        },
+        {
+          "Key": "guestinfo.gateway",
+          "Value": "'${ip_gw}'"
+        },
+        {
+          "Key": "guestinfo.DNS",
+          "Value": "'${ip_gw}'"
+        },
+        {
+          "Key": "guestinfo.domain",
+          "Value": ""
+        },
+        {
+          "Key": "guestinfo.searchpath",
+          "Value": ""
+        },
+        {
+          "Key": "guestinfo.ntp",
+          "Value": "'${ip_gw}'"
+        }
+      ],
+      "NetworkMapping": [
+        {
+          "Name": "Network 1",
+          "Network": "'${network_ref}'"
+        }
+      ],
+      "MarkAsTemplate": false,
+      "PowerOn": false,
+      "InjectOvfEnv": false,
+      "WaitForIP": false,
+      "Name": "'${name}'"
+    }
+    '
+    echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
+    govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+    govc vm.power -on=true "${name}" | tee -a ${log_file}
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: VCF-Cloud_Builder VM started"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+    count=1
+    until $(curl --output /dev/null --silent --head -k https://${ip_cb})
+    do
+      echo "Attempt ${count}: Waiting for Cloud Builder VM at https://${ip_cb} to be reachable..." | tee -a ${log_file}
+      sleep 30
+      count=$((count+1))
+      if [[ "${count}" -eq 30 ]]; then
+        echo "ERROR: Unable to connect to Cloud Builder VM at https://${ip_cb} to be reachable after ${count} Attempts" | tee -a ${log_file}
+        exit 1
+      fi
+    done
+    if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested Cloud Builder VM configured and reachable"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+  fi
+  #
+  #
+  echo '------------------------------------------------------------' | tee -a ${log_file}
+  echo "ESXI customization  - This should take 2 minutes" | tee -a ${log_file}
+  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  do
+    ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh | tee -a ${log_file}"
+  done
 fi
 #
 #
