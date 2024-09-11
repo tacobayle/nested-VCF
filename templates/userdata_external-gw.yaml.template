@@ -165,10 +165,10 @@ write_files:
         ((count_esxi++))
       done
       #
-      sudo tee /var/lib/bind/db.${reverse_vm_networks} > /dev/null <<EOT
+      sudo tee /var/lib/bind/db.${reverse_vm_network} > /dev/null <<EOT
       \$ORIGIN .
       \$TTL 60
-      ${reverse_vm_networks}.in-addr.arpa     IN SOA  dns.${domain}. admin.${domain}. (
+      ${reverse_vm_network}.in-addr.arpa     IN SOA  dns.${domain}. admin.${domain}. (
                                       298        ; serial
                                       604800     ; refresh (1 week)
                                       86400      ; retry (1 day)
@@ -176,15 +176,15 @@ write_files:
                                       604800     ; minimum (1 week)
                                       )
                               NS      dns.${domain}.
-      \$ORIGIN ${reverse_vm_networks}.in-addr.arpa.
+      \$ORIGIN ${reverse_vm_network}.in-addr.arpa.
       EOT
-      echo "`echo '${ip_vcsa}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-vcsa.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
-      echo "`echo '${ip_sddc_manager}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-sddc-manager.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
-      echo "`echo '${ip_nsx_vip}' | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}vip.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
+      echo "`echo '${ip_vcsa}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-vcsa.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_network}
+      echo "`echo '${ip_sddc_manager}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-sddc-manager.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_network}
+      echo "`echo '${ip_nsx_vip}' | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}vip.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_network}
       count_nsx=1
       echo '${ips_nsx}' | jq -c -r .[] | while read ip_nsx
       do
-        echo "`echo $ip_nsx | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}$count_nsx.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
+        echo "`echo $ip_nsx | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}$count_nsx.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_network}
         ((count_nsx++))
       done
       #
