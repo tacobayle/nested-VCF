@@ -499,10 +499,10 @@ EOF
   }'
   echo ${sddc_json_cb} | jq . -c -r | tee /root/${basename_sddc}_cb.json
   scp -o StrictHostKeyChecking=no /root/${basename_sddc}_cb.json ubuntu@${ip_gw}:/home/ubuntu/${basename_sddc}_cb.json
-  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
-  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: json for cloud builder generated and available at http://'${ip_gw}'/${basename_sddc}_cb.json"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: json for cloud builder generated and available at http://'${ip_gw}'/'${basename_sddc}'_cb.json"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
