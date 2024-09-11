@@ -94,13 +94,21 @@ write_files:
         };
         file "/var/lib/bind/db.${domain}";
       };
-      zone "${reverse}.in-addr.arpa" {
+      zone "${reverse_mgmt}.in-addr.arpa" {
         type master;
         update-policy {
           grant myKeyName zonesub any;
         };
         allow-transfer { any; };
-        file "/var/lib/bind/db.${reverse}";
+        file "/var/lib/bind/db.${reverse_mgmt}";
+      };
+      zone "${reverse_vm_network}.in-addr.arpa" {
+        type master;
+        update-policy {
+          grant myKeyName zonesub any;
+        };
+        allow-transfer { any; };
+        file "/var/lib/bind/db.${reverse_vm_network}";
       };
       EOT
       #
@@ -136,10 +144,10 @@ write_files:
         ((count_nsx++))
       done
       #
-      sudo tee /var/lib/bind/db.${reverse} > /dev/null <<EOT
+      sudo tee /var/lib/bind/db.${reverse_mgmt} > /dev/null <<EOT
       \$ORIGIN .
       \$TTL 60
-      ${reverse}.in-addr.arpa     IN SOA  dns.${domain}. admin.${domain}. (
+      ${reverse_mgmt}.in-addr.arpa     IN SOA  dns.${domain}. admin.${domain}. (
                                       298        ; serial
                                       604800     ; refresh (1 week)
                                       86400      ; retry (1 day)
@@ -147,23 +155,36 @@ write_files:
                                       604800     ; minimum (1 week)
                                       )
                               NS      dns.${domain}.
-      \$ORIGIN ${reverse}.in-addr.arpa.
+      \$ORIGIN ${reverse_mgmt}.in-addr.arpa.
       EOT
-      echo "`echo '${ip_nsx_vip}' | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}vip.${domain}." | tee -a /var/lib/bind/db.${reverse}
-      echo "`echo '${ip_vcsa}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-vcsa.${domain}." | tee -a /var/lib/bind/db.${reverse}
-      echo "`echo '${ip_sddc_manager}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-sddc-manager.${domain}." | tee -a /var/lib/bind/db.${reverse}
       #
       count_esxi=1
       echo '${ips}' | jq -c -r .[] | while read ip_esxi
       do
-        echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename}$count_esxi.${domain}." | tee -a /var/lib/bind/db.${reverse}
+        echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename}$count_esxi.${domain}." | tee -a /var/lib/bind/db.${reverse_mgmt}
         ((count_esxi++))
       done
       #
+      sudo tee /var/lib/bind/db.${reverse_vm_networks} > /dev/null <<EOT
+      \$ORIGIN .
+      \$TTL 60
+      ${reverse_vm_networks}.in-addr.arpa     IN SOA  dns.${domain}. admin.${domain}. (
+                                      298        ; serial
+                                      604800     ; refresh (1 week)
+                                      86400      ; retry (1 day)
+                                      2419200    ; expire (4 weeks)
+                                      604800     ; minimum (1 week)
+                                      )
+                              NS      dns.${domain}.
+      \$ORIGIN ${reverse_vm_networks}.in-addr.arpa.
+      EOT
+      echo "`echo '${ip_vcsa}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-vcsa.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
+      echo "`echo '${ip_sddc_manager}' | cut -f4 -d'.'`            PTR     ${basename_sddc}-sddc-manager.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
+      echo "`echo '${ip_nsx_vip}' | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}vip.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
       count_nsx=1
       echo '${ips_nsx}' | jq -c -r .[] | while read ip_nsx
       do
-        echo "`echo $ip_nsx | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}$count_nsx.${domain}." | tee -a /var/lib/bind/db.${reverse}
+        echo "`echo $ip_nsx | cut -f4 -d'.'`            PTR     ${basename_sddc}${basename_nsx_manager}$count_nsx.${domain}." | tee -a /var/lib/bind/db.${reverse_vm_networks}
         ((count_nsx++))
       done
       #

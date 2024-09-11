@@ -72,7 +72,10 @@ if [[ ${operation} == "apply" ]] ; then
     IFS="." read -r -a octets <<< "$cidr"
     count=0
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
-    reverse=${addr%.}
+    reverse_mgmt=${addr%.}
+    cidr=$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
+    for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr=$octet"."$addr ;((count++)) ; done
+    reverse_vm_network=${addr%.}
     basename=$(jq -c -r .esxi.basename $jsonFile)
     sed -e "s/\${password}/${EXTERNAL_GW_PASSWORD}/" \
         -e "s/\${ip_gw}/${ip_gw}/" \
@@ -81,7 +84,8 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${ntp_masters}/${ntp_masters}/" \
         -e "s/\${forwarders_netplan}/${forwarders_netplan}/" \
         -e "s/\${domain}/${domain}/g" \
-        -e "s/\${reverse}/${reverse}/g" \
+        -e "s/\${reverse_mgmt}/${reverse_mgmt}/g" \
+        -e "s/\${reverse_vm_network}/${reverse_vm_network}/g" \
         -e "s/\${ips}/${ips}/" \
         -e "s/\${basename_sddc}/${basename_sddc}/" \
         -e "s/\${basename_nsx_manager}/${basename_nsx_manager}/" \
