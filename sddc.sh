@@ -172,6 +172,7 @@ if [[ ${operation} == "apply" ]] ; then
           #
           sed -e "s/\${esxi_ip}/${esxi_ip}/" \
               -e "s@\${SLACK_WEBHOOK_URL}@${SLACK_WEBHOOK_URL}@" \
+              -e "s/\${esxi}/${esxi}/" \
               -e "s/\${name_esxi}/${name_esxi}/" \
               -e "s/\${basename_sddc}/${basename_sddc}/" \
               -e "s/\${ESXI_PASSWORD}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_customization.sh.template | tee /root/esxi_customization-$esxi.sh > /dev/null
@@ -667,7 +668,6 @@ if [[ ${operation} == "destroy" ]] ; then
   echo "Deletion of a VM on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
   if [[ ${list_gw} != "null" ]] ; then
     govc vm.power -off=true "${gw_name}" | tee -a ${log_file}
-    sleep 30
     govc vm.destroy "${gw_name}" | tee -a ${log_file}
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': external-gw '${gw_name}' VM powered off and destroyed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   else
