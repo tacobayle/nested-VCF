@@ -191,14 +191,15 @@ if [[ ${operation} == "apply" ]] ; then
             fi
           done
           chmod u+x /home/ubuntu/cert-esxi-${esxi}.expect
-          #/home/ubuntu/cert-esxi-${esxi}.expect
+          # /home/ubuntu/cert-esxi-${esxi}.expect
           if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} configured and reachable with renewed cert"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-          sleep 30
+          # sleep 30
           govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
           do
             govc host.storage.mark -ssd \${item}
             if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} disks '\${item}' marked as SSD"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
           done
+          # govc host.esxcli system shutdown reboot --reason ntp_fix --delay 5
 EOF
           scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_check_${esxi}.sh
         done
@@ -375,7 +376,7 @@ EOF
       "vip": "'${ip_nsx_vip}'",
       "vipFqdn": "'${basename_sddc}''${basename_nsx_manager}'vip",
       "nsxtLicense": null,
-      "transportVlanId": "'$(jq -c -r --arg arg "OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
+      "transportVlanId": "'$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)'",
       "ipAddressPoolSpec": {
         "name": "'${basename_sddc}'-ip-addr-pool",
         "description": "ESXi Host Overlay TEP IP Pool",
@@ -387,8 +388,8 @@ EOF
                 "end": "'$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f2 -d'-')'"
               }
             ],
-            "cidr": "'$(jq -c -r --arg arg "OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
-            "gateway": "'$(jq -c -r --arg arg "OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'"
+            "cidr": "'$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)'",
+            "gateway": "'$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)'"
           }
         ]
       }
