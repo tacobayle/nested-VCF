@@ -97,7 +97,6 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${ip_vcsa}/${ip_vcsa}/" \
         -e "s@\${networks}@${networks}@" \
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
-        -e "s/\${basename}/${basename}/" \
         -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /tmp/${gw_name}_userdata.yaml > /dev/null
     json_data='
     {
@@ -252,13 +251,13 @@ EOF
   #
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
-    name="$(jq -c -r .esxi.basename $jsonFile)${esxi}"
+    name_esxi="${basename_sddc}-esxi0${esxi}"
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
       echo "ERROR: unable to create nested ESXi ${name}: it already exists" | tee -a ${log_file}
     else
       net=$(jq -c -r .esxi.nics[0] $jsonFile)
       esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${basename}''${esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
       echo "Building custom ESXi ISO for ESXi${esxi}"
       rm -f ${iso_build_location}/ks_cust.cfg
@@ -269,7 +268,7 @@ EOF
           -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
           -e "s/\${dns_servers}/${ip_gw}/" \
           -e "s/\${ntp_servers}/${ip_gw}/" \
-          -e "s/\${hostname}/${name}/" \
+          -e "s/\${hostname}/${name_esxi}/" \
           -e "s/\${domain}/${domain}/" \
           -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
       echo "Building new ISO for ESXi ${esxi}"
