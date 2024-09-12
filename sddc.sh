@@ -252,7 +252,7 @@ EOF
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
     name_esxi="${basename_sddc}-esxi0${esxi}"
-    if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
+    if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_esxi}'")] | length') -eq 1 ]]; then
       echo "ERROR: unable to create nested ESXi ${name}: it already exists" | tee -a ${log_file}
     else
       net=$(jq -c -r .esxi.nics[0] $jsonFile)
@@ -282,16 +282,16 @@ EOF
       disk_os_size=$(jq -c -r .esxi.disk_os_size $jsonFile)
       disk_flash_size=$(jq -c -r .esxi.disk_flash_size $jsonFile)
       disk_capacity_size=$(jq -c -r .esxi.disk_capacity_size $jsonFile)
-      names="${names} ${name}"
-      govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder}" -on=false "${name}" | tee -a ${log_file}
-      govc device.cdrom.add -vm "${folder}/${name}" | tee -a ${log_file}
-      govc device.cdrom.insert -vm "${folder}/${name}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso) | tee -a ${log_file}
-      govc vm.change -vm "${folder}/${name}" -nested-hv-enabled | tee -a ${log_file}
-      govc vm.disk.create -vm "${folder}/${name}" -name ${name}/disk1 -size ${disk_flash_size} | tee -a ${log_file}
-      govc vm.disk.create -vm "${folder}/${name}" -name ${name}/disk2 -size ${disk_capacity_size} | tee -a ${log_file}
+      names="${names} ${name_esxi}"
+      govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder}" -on=false "${name_esxi}" | tee -a ${log_file}
+      govc device.cdrom.add -vm "${folder}/${name_esxi}" | tee -a ${log_file}
+      govc device.cdrom.insert -vm "${folder}/${name_esxi}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso) | tee -a ${log_file}
+      govc vm.change -vm "${folder}/${name_esxi}" -nested-hv-enabled | tee -a ${log_file}
+      govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk1 -size ${disk_flash_size} | tee -a ${log_file}
+      govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk2 -size ${disk_capacity_size} | tee -a ${log_file}
       net=$(jq -c -r .esxi.nics[1] $jsonFile)
-      govc vm.network.add -vm "${folder}/${name}" -net ${net} -net.adapter vmxnet3 | tee -a ${log_file}
-      govc vm.power -on=true "${folder}/${name}" | tee -a ${log_file}
+      govc vm.network.add -vm "${folder}/${name_esxi}" -net ${net} -net.adapter vmxnet3 | tee -a ${log_file}
+      govc vm.power -on=true "${folder}/${name_esxi}" | tee -a ${log_file}
       if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': nested ESXi '${esxi}' created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     fi
   done
@@ -642,14 +642,14 @@ if [[ ${operation} == "destroy" ]] ; then
   echo '------------------------------------------------------------' | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
-    name="$(jq -c -r .esxi.basename $jsonFile)${esxi}"
-    echo "Deletion of a nested ESXi ${name} on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
-    if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
-      govc vm.power -off=true "${folder}/${name}"
-      govc vm.destroy "${folder}/${name}"
+    name_esxi="${basename_sddc}-esxi0${esxi}"
+    echo "Deletion of a nested ESXi ${name_esxi} on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
+    if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_esxi}'")] | length') -eq 1 ]]; then
+      govc vm.power -off=true "${folder}/${name_esxi}"
+      govc vm.destroy "${folder}/${name_esxi}"
       if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': nested ESXi '${esxi}' destroyed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     else
-      echo "ERROR: unable to delete ESXi ${name}: it is already gone" | tee -a ${log_file}
+      echo "ERROR: unable to delete ESXi ${name_esxi}: it is already gone" | tee -a ${log_file}
     fi
   done
   #
