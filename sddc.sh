@@ -165,56 +165,17 @@ if [[ ${operation} == "apply" ]] ; then
         for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
         do
           esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
+          name_esxi="${basename_sddc}-esxi0${esxi}"
           sed -e "s/\${esxi_ip}/${esxi_ip}/" \
               -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
           scp -o StrictHostKeyChecking=no /root/cert-esxi-$esxi.expect ubuntu@${ip_gw}:/home/ubuntu/cert-esxi-$esxi.expect
-          tee /root/esxi_check_${esxi}.sh > /dev/null <<EOF
-          #!/bin/bash
           #
-          SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
-          export GOVC_PASSWORD=${ESXI_PASSWORD}
-          export GOVC_INSECURE=true
-          export GOVC_URL=${esxi_ip}
-          export GOVC_USERNAME=root
-          basename_sddc=${basename_sddc}
-          # https check
-          count=1
-          until \$(curl --output /dev/null --silent --head -k https://${esxi_ip})
-          do
-            echo "Attempt \${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
-            sleep 60
-            count=\$((count+1))
-            if [[ "\${count}" -eq 10 ]]; then
-              echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
-              if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-'\${basename_sddc}': nested ESXi ${esxi_ip} unable to reach"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-              exit
-            fi
-          done
-          chmod u+x /home/ubuntu/cert-esxi-${esxi}.expect
-          # /home/ubuntu/cert-esxi-${esxi}.expect
-          if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-'\${basename_sddc}': nested ESXi ${esxi_ip} configured and reachable with renewed cert"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-          # sleep 30
-          govc host.storage.info -json -rescan | jq -c -r '.storageDeviceInfo.scsiLun[] | select( .deviceType == "disk" ) | .deviceName' | while read item
-          do
-            govc host.storage.mark -ssd \${item}
-            if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-'\${basename_sddc}': nested ESXi ${esxi_ip} disks '\${item}' marked as SSD"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-          done
-          govc host.esxcli system shutdown reboot --reason ntp_fix --delay 5
-          # https check
-          count=1
-          until \$(curl --output /dev/null --silent --head -k https://${esxi_ip})
-          do
-            echo "Attempt \${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
-            sleep 60
-            count=\$((count+1))
-            if [[ "\${count}" -eq 10 ]]; then
-              echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
-              if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-'\${basename_sddc}': nested ESXi ${esxi_ip} unable to reach"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-              exit
-            fi
-          done
-EOF
-          scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_check_${esxi}.sh
+          sed -e "s/\${esxi_ip}/${esxi_ip}/" \
+              -e "s/\${SLACK_WEBHOOK_URL}/${SLACK_WEBHOOK_URL}/" \
+              -e "s/\${name_esxi}/${name_esxi}/" \
+              -e "s/\${basename_sddc}/${basename_sddc}/" \
+              -e "s/\${ESXI_PASSWORD}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_customization.sh.template | tee /root/esxi_customization-$esxi.sh > /dev/null
+          scp -o StrictHostKeyChecking=no /root/esxi_customization-$esxi.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_customization-$esxi.sh
         done
         break
       fi
@@ -623,7 +584,11 @@ EOF
   echo "ESXI customization  - This should take 2 minutes" | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
-    ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_check_${esxi}.sh"
+    name_esxi="${basename_sddc}-esxi0${esxi}"
+    govc vm.power -s ${name_esxi} | tee -a ${log_file}
+    govc vm.power -on ${name_esxi} | tee -a ${log_file}
+    sleep 90
+    ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_customization-$esxi.sh"
   done
 fi
 #
