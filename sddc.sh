@@ -208,7 +208,6 @@ if [[ ${operation} == "apply" ]] ; then
   rm -fr ${iso_mount_location}
   echo "Modifying ${iso_build_location}/${boot_cfg_location}" | tee -a ${log_file}
   echo "kernelopt=runweasel ks=cdrom:/KS_CUST.CFG" | tee -a ${iso_build_location}/${boot_cfg_location}
-  hostSpecs="[]"
   #
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
@@ -260,6 +259,14 @@ if [[ ${operation} == "apply" ]] ; then
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Cloud Builder JSON file creation  - This should take 1 minute" | tee -a ${log_file}
+  hostSpecs="[]"
+  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  do
+    name_esxi="${basename_sddc}-esxi0${esxi}"
+    esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
+    hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+    hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
+  done
   nsxtManagers="[]"
   for nsx_count in $(seq 1 $(jq -c -r '.sddc.nsx.ips | length' $jsonFile))
   do
@@ -272,38 +279,37 @@ if [[ ${operation} == "apply" ]] ; then
       -e "s/\${basename_sddc}/${basename_sddc}/" \
       -e "s/\${ip_gw}/${ip_gw}/" \
       -e "s/\${domain}/${domain}/" \
-      -e "s/\${subnet_mgmt}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)/" \
+      -e "s@\${subnet_mgmt}@$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
       -e "s/\${gw_mgmt}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
       -e "s/\${vlan_id_mgmt}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
-      -e "s/\${subnet_vmotion}/$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)/" \
+      -e "s@\${subnet_vmotion}@$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
       -e "s/\${gw_vmotion}/$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
       -e "s/\${vlan_id_vmotion}/$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
       -e "s/\${ending_ip_vmotion}/$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f2 -d'-')/" \
       -e "s/\${starting_ip_vmotion}/$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f1 -d'-')/" \
-      -e "s/\${subnet_vsan}/$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)/" \
+      -e "s@\${subnet_vsan}@$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
       -e "s/\${gw_vsan}/$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
       -e "s/\${vlan_id_vsan}/$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
       -e "s/\${ending_ip_vsan}/$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f2 -d'-')/" \
       -e "s/\${starting_ip_vsan}/$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f1 -d'-')/" \
-      -e "s/\${subnet_vm_mgmt}/$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)/" \
+      -e "s@\${subnet_vm_mgmt}@$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
       -e "s/\${gw_vm_mgmt}/$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
       -e "s/\${vlan_id_vm_mgmt}/$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
       -e "s/\${nsxtManagerSize}/$(jq -c -r .sddc.nsx.size ${jsonFile})/" \
-      -e "s/\${nsxtManagers}/${nsxtManagers}/" \
+      -e "s/\${nsxtManagers}/$(echo ${nsxtManagers} | jq -c -r .)/" \
       -e "s/\${NSX_PASSWORD}/${NSX_PASSWORD}/" \
       -e "s/\${ip_nsx_vip}/${ip_nsx_vip}/" \
       -e "s/\${basename_nsx_manager}/${basename_nsx_manager}/" \
       -e "s/\${transportVlanId}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
       -e "s/\${nsx_pool_range_start}/$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f1 -d'-')/" \
       -e "s/\${nsx_pool_range_end}/$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f2 -d'-')/" \
-      -e "s/\${nsx_subnet_cidr}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)/" \
+      -e "s@\${nsx_subnet_cidr}@$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
       -e "s/\${nsx_subnet_gw}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
-      -e "s/\${vsan_license}/$(jq -c -r .vsan.license ${jsonFile})/" \
       -e "s/\${VCENTER_PASSWORD}/${VCENTER_PASSWORD}/" \
       -e "s/\${ssoDomain}/$(jq -c -r .sddc.vcenter.ssoDomain ${jsonFile})/" \
       -e "s/\${ip_vcsa}/${ip_vcsa}/" \
       -e "s/\${vmSize}/$(jq -c -r .sddc.vcenter.vmSize ${jsonFile})/" \
-      -e "s/\${hostSpecs}/${hostSpecs}/" /nested-vcf/templates/sddc_cb.json.template | tee /root/sddc_${basename_sddc}_cb_test.json.template > /dev/null
+      -e "s/\${hostSpecs}/$(echo ${hostSpecs} | jq -c -r .)/" /nested-vcf/templates/sddc_cb.json.template | tee /root/sddc_${basename_sddc}_cb_test.json > /dev/null
   sddc_json_cb='
   {
     "deployWithoutLicenseKeys": true,
@@ -408,7 +414,6 @@ if [[ ${operation} == "apply" ]] ; then
     },
     "vsanSpec":
     {
-      "licenseFile": '$(jq .vsan.license ${jsonFile})',
       "vsanDedup": "false",
       "esaConfig":
       {
@@ -624,8 +629,8 @@ if [[ ${operation} == "apply" ]] ; then
   do
     name_esxi="${basename_sddc}-esxi0${esxi}"
     govc vm.power -s ${name_esxi} | tee -a ${log_file}
-    govc vm.power -on ${name_esxi} | tee -a ${log_file}
     sleep 90
+    govc vm.power -on ${name_esxi} | tee -a ${log_file}
     ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_customization-$esxi.sh"
   done
 fi

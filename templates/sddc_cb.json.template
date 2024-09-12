@@ -11,7 +11,7 @@
       "hostname": "${basename_sddc}-sddc-manager",
       "rootUserCredentials": {
         "username": "root",
-        "password": "${SDDC_MANAGER_PASSWORD}'"
+        "password": "${SDDC_MANAGER_PASSWORD}"
       },
       "localUserPassword": "${SDDC_MANAGER_PASSWORD}"
     },
@@ -37,9 +37,9 @@
       },
       {
         "networkType": "VMOTION",
-        "subnet": "${subnet_motion}",
-        "gateway": "${gw_motion}",
-        "vlanId": "${vlan_id_motion}",
+        "subnet": "${subnet_vmotion}",
+        "gateway": "${gw_vmotion}",
+        "vlanId": "${vlan_id_vmotion}",
         "mtu": "9000",
         "portGroupKey": "${basename_sddc}-pg-vmotion",
         "includeIpAddressRanges": [
@@ -59,7 +59,7 @@
         "includeIpAddressRanges": [
           {
             "endIpAddress": "${ending_ip_vsan}",
-            "startIpAddress": "${starting_ip_vsan}",
+            "startIpAddress": "${starting_ip_vsan}"
           }
         ]
       },
@@ -74,7 +74,7 @@
     ],
     "nsxtSpec": {
       "nsxtManagerSize": "${nsxtManagerSize}",
-      "nsxtManagers": '${nsxtManagers}',
+      "nsxtManagers": ${nsxtManagers},
       "rootNsxtManagerPassword": "${NSX_PASSWORD}",
       "nsxtAdminPassword": "${NSX_PASSWORD}",
       "nsxtAuditPassword": "${NSX_PASSWORD}",
@@ -101,13 +101,12 @@
     },
     "vsanSpec":
     {
-      "licenseFile": "${vsan_license}",
       "vsanDedup": "false",
       "esaConfig":
       {
         "enabled": false
       },
-      "datastoreName": "'${basename_sddc}'-vsan"
+      "datastoreName": "${basename_sddc}-vsan"
     },
     "dvsSpecs": [
       {
@@ -201,5 +200,5 @@
       "storageSize": null,
       "rootVcenterPassword": "${VCENTER_PASSWORD}"
     },
-    "hostSpecs": '${hostSpecs}'
+    "hostSpecs": ${hostSpecs}
 }
