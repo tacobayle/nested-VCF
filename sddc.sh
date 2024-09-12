@@ -199,7 +199,20 @@ if [[ ${operation} == "apply" ]] ; then
             govc host.storage.mark -ssd \${item}
             if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} disks '\${item}' marked as SSD"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
           done
-          # govc host.esxcli system shutdown reboot --reason ntp_fix --delay 5
+          govc host.esxcli system shutdown reboot --reason ntp_fix --delay 5
+          # https check
+          count=1
+          until \$(curl --output /dev/null --silent --head -k https://${esxi_ip})
+          do
+            echo "Attempt \${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
+            sleep 60
+            count=\$((count+1))
+            if [[ "\${count}" -eq 10 ]]; then
+              echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
+              if [ -z "\${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'\$(date "+%Y-%m-%d,%H:%M:%S")', nested-vcf: nested ESXi ${esxi_ip} unable to reach"}' \${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+              exit
+            fi
+          done
 EOF
           scp -o StrictHostKeyChecking=no /root/esxi_check_${esxi}.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_check_${esxi}.sh
         done
