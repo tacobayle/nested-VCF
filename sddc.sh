@@ -253,7 +253,7 @@ EOF
   do
     name_esxi="${basename_sddc}-esxi0${esxi}"
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_esxi}'")] | length') -eq 1 ]]; then
-      echo "ERROR: unable to create nested ESXi ${name}: it already exists" | tee -a ${log_file}
+      echo "ERROR: unable to create nested ESXi ${name_esxi}: it already exists" | tee -a ${log_file}
     else
       net=$(jq -c -r .esxi.nics[0] $jsonFile)
       esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
