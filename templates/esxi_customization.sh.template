@@ -9,14 +9,14 @@ export GOVC_USERNAME=root
 count=1
 until $(curl --output /dev/null --silent --head -k https://${esxi_ip})
 do
-echo "Attempt ${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
-sleep 10
-count=$((count+1))
-if [[ "${count}" -eq 60 ]]; then
-  echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
-  if [ -z "${SLACK_WEBHOOK_URL_LOCAL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-${basename_sddc}: nested ESXi ${name_esxi} unable to reach"}' ${SLACK_WEBHOOK_URL_LOCAL} >/dev/null 2>&1; fi
-  exit
-fi
+  echo "Attempt ${count}: Waiting for ESXi host at https://${esxi_ip} to be reachable..."
+  sleep 10
+  count=$((count+1))
+    if [[ "${count}" -eq 60 ]]; then
+      echo "ERROR: Unable to connect to ESXi host at https://${esxi_ip}"
+      if [ -z "${SLACK_WEBHOOK_URL_LOCAL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-${basename_sddc}: nested ESXi ${name_esxi} unable to reach"}' ${SLACK_WEBHOOK_URL_LOCAL} >/dev/null 2>&1; fi
+      exit
+    fi
 done
 # chmod u+x /home/ubuntu/cert-esxi-${esxi}.expect
 # /home/ubuntu/cert-esxi-${esxi}.expect
