@@ -333,6 +333,57 @@ if [[ ${operation} == "apply" ]] ; then
     ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_customization-$esxi.sh"
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': nested ESXi '${name_esxi}' ready"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   done
+  #
+  #
+  echo '------------------------------------------------------------' | tee -a ${log_file}
+  echo "SDDC creation - This should take hours..." | tee -a ${log_file}
+  if [[ $(jq -c -r .sddc.create $jsonFile) == "true" ]] ; then
+    validation_id=$(curl -s -k "https://${ip_cb}/v1/sddcs/validations" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -d @/root/${basename_sddc}_cb.json | jq -c -r .id)
+    # validation json
+    retry=60
+    pause=10
+    attempt=1
+    while true ; do
+      echo "attempt $attempt to verify SDDC JSON validation" | tee -a ${log_file}
+      executionStatus=$(curl -k -s "https://${ip_cb}/v1/sddcs/validations/${validation_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X GET -H 'Accept: application/json' | jq -c -r .executionStatus)
+      if [[ ${executionStatus} == "COMPLETED" ]]; then
+        resultStatus=$(curl -k -s "https://${ip_cb}/v1/sddcs/validations/${validation_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X GET -H 'Accept: application/json' | jq -c -r .resultStatus)
+        echo "SDDC JSON validation: ${resultStatus} after $attempt" | tee -a ${log_file}
+        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC JSON validation: '${resultStatus}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+        break
+      else
+        sleep $pause
+      fi
+      ((attempt++))
+      if [ $attempt -eq $retry ]; then
+        echo "SDDC JSON validation not finished after $attempt attempts of ${pause} seconds" | tee -a ${log_file}
+        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC JSON validation not finished after '${attempt}' attempts of '${pause}' seconds"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+        exit
+      fi
+    done
+    sddc_id=$(curl -s -k "https://${ip_cb}/v1/sddcs" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -d @/root/${basename_sddc}_cb.json | jq -c -r .id)
+    # validation_sddc creation
+    retry=120
+    pause=300
+    attempt=1
+    while true ; do
+      echo "attempt $attempt to verify SDDC creation" | tee -a ${log_file}
+      sddc_status=$(curl -k -s "https://${ip_cb}/v1/sddcs/${sddc_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X GET -H 'Accept: application/json' | jq -c -r .status)
+      if [[ ${sddc_status} != "IN_PROGRESS" ]]; then
+        echo "SDDC creation ${sddc_status} after $attempt" | tee -a ${log_file}
+        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC Cration status: '${sddc_status}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+        break
+      else
+        sleep $pause
+      fi
+      ((attempt++))
+      if [ $attempt -eq $retry ]; then
+        echo "SDDC creation not finished after $attempt attempt of ${pause} seconds" | tee -a ${log_file}
+        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC Creation not finished after '${attempt}' attempts of '${pause}' seconds"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+        exit
+      fi
+    done
+  fi
 fi
 #
 #
