@@ -104,52 +104,52 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s@\${base64_userdata}@$(base64 /tmp/${gw_name}_userdata.yaml -w 0)@" \
         -e "s/\${EXTERNAL_GW_PASSWORD}/${EXTERNAL_GW_PASSWORD}/" \
         -e "s@\${network_ref}@${network_ref}@" \
-        -e "s/\${gw_name}/${gw_name}/" /nested-vcf/templates/options-gw.json.template | tee "/tmp/options-${gw_name}.test.json"
+        -e "s/\${gw_name}/${gw_name}/" /nested-vcf/templates/options-gw.json.template | tee "/tmp/options-${gw_name}.json"
     #
-    json_data='
-    {
-      "DiskProvisioning": "thin",
-      "IPAllocationPolicy": "fixedPolicy",
-      "IPProtocol": "IPv4",
-      "PropertyMapping": [
-        {
-          "Key": "instance-id",
-          "Value": "id-ovf"
-        },
-        {
-          "Key": "hostname",
-          "Value": "'${gw_name}'"
-        },
-        {
-          "Key": "seedfrom",
-          "Value": ""
-        },
-        {
-          "Key": "public-keys",
-          "Value": "'$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub)'"
-        },
-        {
-          "Key": "user-data",
-          "Value": "'$(base64 /tmp/${gw_name}_userdata.yaml -w 0)'"
-        },
-        {
-          "Key": "password",
-          "Value": "'${EXTERNAL_GW_PASSWORD}'"
-        }
-      ],
-      "NetworkMapping": [
-        {
-          "Name": "VM Network",
-          "Network": "'${network_ref}'"
-        }
-      ],
-      "MarkAsTemplate": false,
-      "PowerOn": false,
-      "InjectOvfEnv": false,
-      "WaitForIP": false,
-      "Name": "'${gw_name}'"
-    }'
-    echo ${json_data} | jq . | tee "/tmp/options-${gw_name}.json"
+#    json_data='
+#    {
+#      "DiskProvisioning": "thin",
+#      "IPAllocationPolicy": "fixedPolicy",
+#      "IPProtocol": "IPv4",
+#      "PropertyMapping": [
+#        {
+#          "Key": "instance-id",
+#          "Value": "id-ovf"
+#        },
+#        {
+#          "Key": "hostname",
+#          "Value": "'${gw_name}'"
+#        },
+#        {
+#          "Key": "seedfrom",
+#          "Value": ""
+#        },
+#        {
+#          "Key": "public-keys",
+#          "Value": "'$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub)'"
+#        },
+#        {
+#          "Key": "user-data",
+#          "Value": "'$(base64 /tmp/${gw_name}_userdata.yaml -w 0)'"
+#        },
+#        {
+#          "Key": "password",
+#          "Value": "'${EXTERNAL_GW_PASSWORD}'"
+#        }
+#      ],
+#      "NetworkMapping": [
+#        {
+#          "Name": "VM Network",
+#          "Network": "'${network_ref}'"
+#        }
+#      ],
+#      "MarkAsTemplate": false,
+#      "PowerOn": false,
+#      "InjectOvfEnv": false,
+#      "WaitForIP": false,
+#      "Name": "'${gw_name}'"
+#    }'
+#    echo ${json_data} | jq . | tee "/tmp/options-${gw_name}.json"
     govc import.ova --options="/tmp/options-${gw_name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" | tee -a ${log_file}
     trunk1=$(jq -c -r .esxi.nics[0] $jsonFile)
     govc vm.network.add -vm "${folder}/${gw_name}" -net "${trunk1}" -net.adapter vmxnet3 | tee -a ${log_file}
