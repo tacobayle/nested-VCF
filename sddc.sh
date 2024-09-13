@@ -32,6 +32,7 @@ ip_sddc_manager=$(jq -c -r .sddc.manager.ip ${jsonFile})
 domain=$(jq -c -r .domain $jsonFile)
 ip_gw=$(jq -c -r .gw.ip $jsonFile)
 ip_vcsa=$(jq -c -r .sddc.vcenter.ip ${jsonFile})
+name_cb=$(jq -c -r .cloud_builder.name $jsonFile)
 #
 echo "Starting timestamp: $(date)" | tee -a ${log_file}
 source /nested-vcf/bash/govc/load_govc_external.sh
@@ -98,6 +99,13 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s@\${networks}@${networks}@" \
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
         -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /tmp/${gw_name}_userdata.yaml > /dev/null
+    #
+    sed -e "s#\${public_key}#$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub)#" \
+        -e "s@\${base64_userdata}@$(base64 /tmp/${gw_name}_userdata.yaml -w 0)@" \
+        -e "s/\${EXTERNAL_GW_PASSWORD}/${EXTERNAL_GW_PASSWORD}/" \
+        -e "s@\${network_ref}@${network_ref}@" \
+        -e "s/\${gw_name}/${gw_name}/" /nested-vcf/templates/options-gw.json.template | tee "/tmp/options-${gw_name}.test.json"
+    #
     json_data='
     {
       "DiskProvisioning": "thin",
@@ -256,7 +264,10 @@ if [[ ${operation} == "apply" ]] ; then
       if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': nested ESXi '${esxi}' created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     fi
   done
-  govc cluster.rule.create -name "${folder}-affinity-rule" -enable -affinity ${names}
+  # affinity rule
+  if [[ $(jq -c -r .affinity $jsonFile) == "true" ]] ; then
+    govc cluster.rule.create -name "${folder}-affinity-rule" -enable -affinity ${names}
+  fi
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Cloud Builder JSON file creation  - This should take 1 minute" | tee -a ${log_file}
@@ -319,7 +330,6 @@ if [[ ${operation} == "apply" ]] ; then
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
-  name=$(jq -c -r .cloud_builder.name $jsonFile)
   ip_cb=$(jq -c -r .cloud_builder.ip $jsonFile)
   ip_gw=$(jq -c -r .gw.ip $jsonFile)
   ova_url=$(jq -c -r .cloud_builder.ova_url $jsonFile)
@@ -327,9 +337,16 @@ if [[ ${operation} == "apply" ]] ; then
   #
   download_file_from_url_to_location "${ova_url}" "/root/$(basename ${ova_url})" "VFC-Cloud_Builder OVA"
   if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': Cloud Builder OVA downloaded"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
+  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_cb}'")] | length') -eq 1 ]]; then
     echo "cloud Builder VM already exists" | tee -a ${log_file}
   else
+    sed -e "s/\${CLOUD_BUILDER_PASSWORD}/${CLOUD_BUILDER_PASSWORD}/" \
+        -e "s/\${name_cb}/${name_cb}/" \
+        -e "s/\${ip_cb}/${ip_cb}/" \
+        -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "${network_ref}" '.vsphere_underlay.networks[] | select( .ref == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
+        -e "s/\${ip_gw}/${ip_gw}/" \
+        -e "s@\${network_ref}@${network_ref}@" /nested-vcf/templates/options-cb.json.template | tee "/tmp/options-${name_cb}.test.json"
+    #
     json_data='
     {
       "DiskProvisioning": "thin",
@@ -354,7 +371,7 @@ if [[ ${operation} == "apply" ]] ; then
         },
         {
           "Key": "guestinfo.hostname",
-          "Value": "'${name}'"
+          "Value": "'${name_cb}'"
         },
         {
           "Key": "guestinfo.ip0",
@@ -395,13 +412,12 @@ if [[ ${operation} == "apply" ]] ; then
       "PowerOn": false,
       "InjectOvfEnv": false,
       "WaitForIP": false,
-      "Name": "'${name}'"
-    }
-    '
-    echo ${json_data} | jq . | tee "/tmp/options-${name}.json"
-    govc import.ova --options="/tmp/options-${name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
+      "Name": "'${name_cb}'"
+    }'
+    echo ${json_data} | jq . | tee "/tmp/options-${name_cb}.json"
+    govc import.ova --options="/tmp/options-${name_cb}.json" -folder "${folder}" "/root/$(basename ${ova_url})" >/dev/null
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': VCF-Cloud_Builder VM created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-    govc vm.power -on=true "${name}" | tee -a ${log_file}
+    govc vm.power -on=true "${name_cb}" | tee -a ${log_file}
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': VCF-Cloud_Builder VM started"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     count=1
     until $(curl --output /dev/null --silent --head -k https://${ip_cb})
@@ -437,10 +453,9 @@ fi
 #
 if [[ ${operation} == "destroy" ]] ; then
   echo '------------------------------------------------------------' | tee -a ${log_file}
-  name=$(jq -c -r .cloud_builder.name $jsonFile)
-  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name}'")] | length') -eq 1 ]]; then
-    govc vm.power -off=true "${folder}/${name}" | tee -a ${log_file}
-    govc vm.destroy "${folder}/${name}" | tee -a ${log_file}
+  if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_cb}'")] | length') -eq 1 ]]; then
+    govc vm.power -off=true "${folder}/${name_cb}" | tee -a ${log_file}
+    govc vm.destroy "${folder}/${name_cb}" | tee -a ${log_file}
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': VCF-Cloud_Builder VM powered off and destroyed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   fi
   echo '------------------------------------------------------------' | tee -a ${log_file}
