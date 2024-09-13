@@ -117,9 +117,7 @@ if [[ ${operation} == "apply" ]] ; then
     echo "${contents}" | tee -a /etc/hosts > /dev/null
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': external-gw '${gw_name}' VM created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     # ssh check
-    retry=60
-    pause=10
-    attempt=1
+    retry=60 ; pause=10 ; attempt=1
     while true ; do
       echo "attempt $attempt to verify ssh to gw ${gw_name}" | tee -a ${log_file}
       ssh -o StrictHostKeyChecking=no "ubuntu@${ip_gw}" -q >/dev/null 2>&1
@@ -346,7 +344,7 @@ if [[ ${operation} == "apply" ]] ; then
       executionStatus=$(curl -k -s "https://${ip_cb}/v1/sddcs/validations/${validation_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X GET -H 'Accept: application/json' | jq -c -r .executionStatus)
       if [[ ${executionStatus} == "COMPLETED" ]]; then
         resultStatus=$(curl -k -s "https://${ip_cb}/v1/sddcs/validations/${validation_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X GET -H 'Accept: application/json' | jq -c -r .resultStatus)
-        echo "SDDC JSON validation: ${resultStatus} after $attempt" | tee -a ${log_file}
+        echo "SDDC JSON validation: ${resultStatus} after $attempt of ${pause} seconds" | tee -a ${log_file}
         if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC JSON validation: '${resultStatus}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
         if [[ ${resultStatus} != "SUCCEEDED" ]] ; then exit ; fi
         break
@@ -367,7 +365,7 @@ if [[ ${operation} == "apply" ]] ; then
       echo "attempt $attempt to verify SDDC creation" | tee -a ${log_file}
       sddc_status=$(curl -k -s "https://${ip_cb}/v1/sddcs/${sddc_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X GET -H 'Accept: application/json' | jq -c -r .status)
       if [[ ${sddc_status} != "IN_PROGRESS" ]]; then
-        echo "SDDC creation ${sddc_status} after $attempt" | tee -a ${log_file}
+        echo "SDDC creation ${sddc_status} after $attempt of ${pause} seconds" | tee -a ${log_file}
         if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC Cration status: '${sddc_status}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
         if [[ ${sddc_status} != "COMPLETED_WITH_SUCCESS" ]]; then exit ; fi
         break
