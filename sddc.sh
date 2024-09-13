@@ -100,7 +100,7 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
         -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /tmp/${gw_name}_userdata.yaml > /dev/null
     #
-    sed -e "s#\${public_key}#$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub)#" \
+    sed -e "s#\${public_key}#$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub | awk '{length=$0; print substr($0, 1, length-2)}')#" \
         -e "s@\${base64_userdata}@$(base64 /tmp/${gw_name}_userdata.yaml -w 0)@" \
         -e "s/\${EXTERNAL_GW_PASSWORD}/${EXTERNAL_GW_PASSWORD}/" \
         -e "s@\${network_ref}@${network_ref}@" \

@@ -17,7 +17,7 @@
     },
     {
       "Key": "public-keys",
-      "Value": "${public_key}"
+      "Value": "${public_key}\n"
     },
     {
       "Key": "user-data",
@@ -39,4 +39,4 @@
   "InjectOvfEnv": false,
   "WaitForIP": false,
   "Name": "${gw_name}"
-}'
+}
