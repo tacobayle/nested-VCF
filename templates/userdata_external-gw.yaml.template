@@ -200,6 +200,7 @@ write_files:
       do
         echo "pool $ntp_master iburst" | tee -a /etc/chrony/chrony.conf
       done
+      echo "allow 0.0.0.0/0" | tee -a /etc/chrony/chrony.conf
       systemctl restart chrony.service
       #
       # HTTP config

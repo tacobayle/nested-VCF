@@ -366,7 +366,7 @@ if [[ ${operation} == "apply" ]] ; then
       sddc_status=$(curl -k -s "https://${ip_cb}/v1/sddcs/${sddc_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X GET -H 'Accept: application/json' | jq -c -r .status)
       if [[ ${sddc_status} != "IN_PROGRESS" ]]; then
         echo "SDDC creation ${sddc_status} after $attempt of ${pause} seconds" | tee -a ${log_file}
-        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC Cration status: '${sddc_status}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC Creation status: '${sddc_status}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
         if [[ ${sddc_status} != "COMPLETED_WITH_SUCCESS" ]]; then exit ; fi
         break
       else
