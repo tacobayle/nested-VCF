@@ -177,7 +177,7 @@
     "clusterSpec":
     {
       "clusterName": "${basename_sddc}-cluster",
-      "clusterEvcMode": "",
+      "clusterEvcMode": null,
       "clusterImageEnabled": true,
       "vmFolders": {
         "MANAGEMENT": "${basename_sddc}-folder-mgmt",
