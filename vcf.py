@@ -20,7 +20,7 @@ def create_sddc(spec):
     folder='/nested-vcf'
     a_dict = spec
     a_dict['operation'] = "apply"
-    json_file='/root/sddc-tmp.json'
+    json_file='/root/data.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.Popen(['/bin/bash', 'sddc.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
@@ -34,7 +34,7 @@ def delete_sddc(spec):
     folder='/nested-vcf'
     a_dict = spec
     a_dict['operation'] = "destroy"
-    json_file='/root/sddc-tmp.json'
+    json_file='/root/data.json'
     with open(json_file, 'w') as outfile:
         json.dump(a_dict, outfile)
     result=subprocess.Popen(['/bin/bash', 'sddc.sh', json_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=folder)
