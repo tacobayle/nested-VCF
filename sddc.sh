@@ -367,14 +367,14 @@ if [[ ${operation} == "apply" ]] ; then
       if [[ ${sddc_status} != "IN_PROGRESS" ]]; then
         echo "SDDC ${sddc_id} creation ${sddc_status} after attempt $attempt of ${pause} seconds, go to https://${ip_cb}" | tee -a ${log_file}
         if [[ ${sddc_status} != "COMPLETED_WITH_SUCCESS" ]]; then
+          ((count_retry++))
           if [[ ${count_retry} == 3 ]]; then
             if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC '${sddc_id}' Creation status: '${sddc_status}', go to https://'${ip_cb}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
             exit
           fi
-          sleep 600
+          sleep 300
           echo "SDDC ${sddc_id} retrying ${count_retry} time to apply after status ${sddc_status}" | tee -a ${log_file}
-          curl -k -s "https://${ip_cb}/v1/sddcs/${sddc_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X PATCH -H 'Content-type: application/json' -d @/root/${basename_sddc}_cb.json
-          ((count_retry++))
+          retry=$(curl -k -s "https://${ip_cb}/v1/sddcs/${sddc_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X PATCH -H 'Content-type: application/json' -d @/root/${basename_sddc}_cb.json)
         fi
         if [[ ${sddc_status} == "COMPLETED_WITH_SUCCESS" ]]; then
           if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC '${sddc_id}' Creation status: '${sddc_status}', go to https://'${ip_cb}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
