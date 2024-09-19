@@ -40,7 +40,7 @@ govc about
 if [ $? -ne 0 ] ; then touch /root/govc.error ; fi
 list_folder=$(govc find -json . -type f)
 list_gw=$(govc find -json vm -name "${gw_name}")
-
+#
 echo '------------------------------------------------------------' | tee ${log_file}
 if [[ ${operation} == "apply" ]] ; then
   echo "Creation of a folder on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
@@ -198,7 +198,7 @@ if [[ ${operation} == "apply" ]] ; then
       xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
       ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
       dc=$(jq -c -r .vsphere_underlay.datacenter $jsonFile)
-      govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" test20240902/$(basename ${iso_location}-${esxi}.iso) | tee -a ${log_file}
+      govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" test20240902/$(basename ${iso_location}-${esxi}.iso) > /dev/null
       if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': ISO ESXi '${esxi}' uploaded "}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
       cpu=$(jq -c -r .esxi.cpu $jsonFile)
       memory=$(jq -c -r .esxi.memory $jsonFile)
@@ -206,15 +206,15 @@ if [[ ${operation} == "apply" ]] ; then
       disk_flash_size=$(jq -c -r .esxi.disk_flash_size $jsonFile)
       disk_capacity_size=$(jq -c -r .esxi.disk_capacity_size $jsonFile)
       names="${names} ${name_esxi}"
-      govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder}" -on=false "${name_esxi}" | tee -a ${log_file}
-      govc device.cdrom.add -vm "${folder}/${name_esxi}" | tee -a ${log_file}
-      govc device.cdrom.insert -vm "${folder}/${name_esxi}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso) | tee -a ${log_file}
-      govc vm.change -vm "${folder}/${name_esxi}" -nested-hv-enabled | tee -a ${log_file}
-      govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk1 -size ${disk_flash_size} | tee -a ${log_file}
-      govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk2 -size ${disk_capacity_size} | tee -a ${log_file}
+      govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder}" -on=false "${name_esxi}" > /dev/null
+      govc device.cdrom.add -vm "${folder}/${name_esxi}" > /dev/null
+      govc device.cdrom.insert -vm "${folder}/${name_esxi}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso) > /dev/null
+      govc vm.change -vm "${folder}/${name_esxi}" -nested-hv-enabled > /dev/null
+      govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk1 -size ${disk_flash_size} > /dev/null
+      govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk2 -size ${disk_capacity_size} > /dev/null
       net=$(jq -c -r .esxi.nics[1] $jsonFile)
-      govc vm.network.add -vm "${folder}/${name_esxi}" -net ${net} -net.adapter vmxnet3 | tee -a ${log_file}
-      govc vm.power -on=true "${folder}/${name_esxi}" | tee -a ${log_file}
+      govc vm.network.add -vm "${folder}/${name_esxi}" -net ${net} -net.adapter vmxnet3 > /dev/null
+      govc vm.power -on=true "${folder}/${name_esxi}" > /dev/null
       if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': nested ESXi '${esxi}' created"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
     fi
   done
@@ -373,7 +373,7 @@ if [[ ${operation} == "apply" ]] ; then
             exit
           fi
           sleep 300
-          echo "SDDC ${sddc_id} retrying ${count_retry} time to apply after status ${sddc_status}" | tee -a ${log_file}
+          echo "SDDC ${sddc_id} retrying ${count_retry} times to apply after status ${sddc_status}" | tee -a ${log_file}
           retry=$(curl -k -s "https://${ip_cb}/v1/sddcs/${sddc_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X PATCH -H 'Content-type: application/json' -d @/root/${basename_sddc}_cb.json)
         fi
         if [[ ${sddc_status} == "COMPLETED_WITH_SUCCESS" ]]; then
@@ -404,6 +404,8 @@ if [[ ${operation} == "destroy" ]] ; then
     govc vm.destroy "${folder}/${name_cb}" | tee -a ${log_file}
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': VCF-Cloud_Builder VM powered off and destroyed"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   fi
+  #
+  #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
   do
