@@ -360,6 +360,7 @@ if [[ ${operation} == "apply" ]] ; then
     done
     sddc_id=$(curl -s -k "https://${ip_cb}/v1/sddcs" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -d @/root/${basename_sddc}_cb.json | jq -c -r .id)
     # validation_sddc creation
+    echo "SDDC ${sddc_id} trying ${count_retry} times to apply" | tee -a ${log_file}
     retry=120 ; pause=300 ; attempt=1 ; count_retry=1
     while true ; do
       echo "attempt $attempt to verify SDDC ${sddc_id} creation" | tee -a ${log_file}
@@ -372,8 +373,8 @@ if [[ ${operation} == "apply" ]] ; then
             if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC '${sddc_id}' Creation status: '${sddc_status}', go to https://'${ip_cb}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
             exit
           fi
-          sleep 300
-          echo "SDDC ${sddc_id} retrying ${count_retry} times to apply after status ${sddc_status}" | tee -a ${log_file}
+          sleep 600
+          echo "SDDC ${sddc_id} trying ${count_retry} times to apply after status ${sddc_status}" | tee -a ${log_file}
           retry=$(curl -k -s "https://${ip_cb}/v1/sddcs/${sddc_id}" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X PATCH -H 'Content-type: application/json' -d @/root/${basename_sddc}_cb.json)
         fi
         if [[ ${sddc_status} == "COMPLETED_WITH_SUCCESS" ]]; then
