@@ -52,11 +52,13 @@ write_files:
         echo "            id: `echo $net | jq -c -r .vlan_id`" | tee -a /etc/netplan/50-cloud-init.yaml
         echo "            link: $ifaceLastName" | tee -a /etc/netplan/50-cloud-init.yaml
         echo "            addresses: [`echo $net | jq -c -r .gw`/`echo $net | jq -c -r .cidr | cut -f2 -d'/'`]" | tee -a /etc/netplan/50-cloud-init.yaml
-        echo "pool $ntp_master iburst" | tee -a /etc/chrony/chrony.conf
+        sudo iptables -t nat -A POSTROUTING -s `echo $net | jq -c -r .cidr` -o $ifaceFirstName -j MASQUERADE
+        sudo iptables -A FORWARD -i vlan.`echo $net | jq -c -r .vlan_id` -o $iface -j ACCEPT
       done
       echo "    version: 2" | tee -a /etc/netplan/50-cloud-init.yaml
       netplan apply
       sysctl -w net.ipv4.ip_forward=1
+      sudo iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
       apt update
       apt install -y expect
       curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
