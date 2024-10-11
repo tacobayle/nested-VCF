@@ -40,8 +40,29 @@ write_files:
       echo "            mtu: 9000" | tee -a /etc/netplan/50-cloud-init.yaml
       echo "    version: 2" | tee -a /etc/netplan/50-cloud-init.yaml
       netplan apply
+      #
+      # apt install
+      #
       apt update
       apt install -y jq
+      packages='${packages}'
+      echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
+      echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
+      echo $packages | jq -c -r .[] | while read package
+      do
+        apt install -y $package
+      done
+      #
+      # Directories
+      #
+      directories='${directories}'
+      echo $directories | jq -c -r .[] | while read directory
+      do
+        sudo -u ubuntu  mkdir -p /home/ubuntu/$directory
+      done
+      #
+      # Network
+      #
       mv /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.old
       cat /etc/netplan/50-cloud-init.yaml.old | head -n -1 | tee /etc/netplan/50-cloud-init.yaml
       echo "    vlans:" | tee -a /etc/netplan/50-cloud-init.yaml
@@ -53,19 +74,18 @@ write_files:
         echo "            link: $ifaceLastName" | tee -a /etc/netplan/50-cloud-init.yaml
         echo "            addresses: [`echo $net | jq -c -r .gw`/`echo $net | jq -c -r .cidr | cut -f2 -d'/'`]" | tee -a /etc/netplan/50-cloud-init.yaml
         sudo iptables -t nat -A POSTROUTING -s `echo $net | jq -c -r .cidr` -o $ifaceFirstName -j MASQUERADE
-        sudo iptables -A FORWARD -i vlan.`echo $net | jq -c -r .vlan_id` -o $iface -j ACCEPT
+        sudo iptables -A FORWARD -i vlan.`echo $net | jq -c -r .vlan_id` -o $ifaceFirstName -j ACCEPT
       done
       echo "    version: 2" | tee -a /etc/netplan/50-cloud-init.yaml
       netplan apply
+      iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+      iptables-save | tee /etc/iptables/rules.v4
       sysctl -w net.ipv4.ip_forward=1
-      sudo iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-      apt update
-      apt install -y expect
+      echo "net.ipv4.ip_forward=1" | tee -a /etc/sysctl.conf
       curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
       #
       # DNS config
       #
-      apt install -y bind9 bind9utils dnsutils
       cp /etc/bind/named.conf.options /etc/bind/named.conf.options.bkup
       cp /etc/bind/named.conf.options /etc/bind/named.conf.options.old
       sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
@@ -133,9 +153,14 @@ write_files:
       EOT
       #
       count_esxi=1
-      echo '${ips}' | jq -c -r .[] | while read ip_esxi
+      echo '${ips_esxi}' | jq -c -r .[] | while read ip_esxi
       do
-        echo "${basename_sddc}-esxi0$count_esxi      IN            A       ${ip_esxi}" | tee -a /var/lib/bind/db.${domain}
+        if [[ $(((${count_esxi}-1)/4+1)) -eq 1 ]] ; then
+          echo "${basename_sddc}-mgmt-esxi0$count_esxi      IN            A       ${ip_esxi}" | tee -a /var/lib/bind/db.${domain}
+        fi
+        if [[ $(((${count_esxi}-1)/4+1)) -gt 1 ]] ; then
+          echo "${basename_sddc}-workload0-esxi0$(((${count_esxi}-1)/4))-esxi0$((${count_esxi}-(((${count_esxi}-1)/4))*4))      IN            A       ${ip_esxi}" | tee -a /var/lib/bind/db.${domain}
+        fi
         ((count_esxi++))
       done
       #
@@ -161,9 +186,14 @@ write_files:
       EOT
       #
       count_esxi=1
-      echo '${ips}' | jq -c -r .[] | while read ip_esxi
+      echo '${ips_esxi}' | jq -c -r .[] | while read ip_esxi
       do
-        echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename_sddc}-esxi0$count_esxi.${domain}." | tee -a /var/lib/bind/db.${reverse_mgmt}
+        if [[ $(((${count_esxi}-1)/4+1)) -eq 1 ]] ; then
+          echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename_sddc}-mgmt-esxi0$count_esxi.${domain}." | tee -a /var/lib/bind/db.${reverse_mgmt}
+        fi
+        if [[ $(((${count_esxi}-1)/4+1)) -gt 1 ]] ; then
+          echo "`echo $ip_esxi | cut -f4 -d'.'`            PTR     ${basename_sddc}-workload0-esxi0$(((${count_esxi}-1)/4))-esxi0$((${count_esxi}-(((${count_esxi}-1)/4))*4)).${domain}." | tee -a /var/lib/bind/db.${reverse_mgmt}
+        fi
         ((count_esxi++))
       done
       #
@@ -194,7 +224,6 @@ write_files:
       #
       # NTP config
       #
-      apt install -y chrony
       mv /etc/chrony/chrony.conf /etc/chrony/chrony.conf.old
       cat /etc/chrony/chrony.conf.old | grep -v pool | tee /etc/chrony/chrony.conf
       ntp_masters='${ntp_masters}'
@@ -207,7 +236,6 @@ write_files:
       #
       # HTTP config
       #
-      apt install -y nginx
       #
       #
       # Patching DNS to localhost

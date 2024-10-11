@@ -1,0 +1,9 @@
+{
+  "gw": {
+    "cpu": 4,
+    "memory": 4096,
+    "disk": "40G"
+  },
+  "directories": ["sddc_manager", "json"],
+  "apt_packages": ["iptables-persistent", "expect", "bind9", "bind9utils", "dnsutils", "chrony", "nginx"]
+}

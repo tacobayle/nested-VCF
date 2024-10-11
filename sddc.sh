@@ -3,13 +3,27 @@
 source /nested-vcf/bash/download_file.sh
 source /nested-vcf/bash/ip.sh
 rm -f /root/govc.error
-jsonFile="${1}"
-if [ -s "${jsonFile}" ]; then
-  jq . $jsonFile > /dev/null
+jsonFile_kube="${1}"
+if [ -s "${jsonFile_kube}" ]; then
+  jq . ${jsonFile_kube} > /dev/null
 else
-  echo "ERROR: jsonFile file is not present"
+  echo "ERROR: ${jsonFile_kube} file is not present"
   exit 255
 fi
+jsonFile_local="/nested-vcf/json/variables.json"
+basename_sddc=$(jq -c -r .sddc.basename $jsonFile_kube)
+operation=$(jq -c -r .operation $jsonFile_kube)
+jsonFile="/root/${basename_sddc}_${operation}.json"
+jq -s '.[0] * .[1]' ${jsonFile_kube} ${jsonFile_local} | tee ${jsonFile}
+#
+# add env variables in json
+#
+variables_json=$(jq -c -r . $jsonFile)
+variables_json=$(echo ${variables_json} | jq '. += {"SLACK_WEBHOOK_URL": "'${SLACK_WEBHOOK_URL}'"}')
+variables_json=$(echo ${variables_json} | jq '. += {"SDDC_MANAGER_PASSWORD": "'${SDDC_MANAGER_PASSWORD}'"}')
+variables_json=$(echo ${variables_json} | jq '. += {"DEPOT_USERNAME": "'${DEPOT_USERNAME}'"}')
+variables_json=$(echo ${variables_json} | jq '. += {"DEPOT_PASSWORD": "'${DEPOT_PASSWORD}'"}')
+echo ${variables_json} | jq . | tee $jsonFile > /dev/null
 #
 #
 operation=$(jq -c -r .operation $jsonFile)
@@ -23,7 +37,6 @@ rm -f ${log_file}
 folder=$(jq -c -r .folder $jsonFile)
 gw_name=$(jq -c -r .gw.name $jsonFile)
 basename=$(jq -c -r .esxi.basename $jsonFile)
-ips=$(jq -c -r .esxi.ips $jsonFile)
 basename_sddc=$(jq -c -r .sddc.basename $jsonFile)
 basename_nsx_manager="-nsx-manager-"
 ips_nsx=$(jq -c -r .sddc.nsx.ips $jsonFile)
@@ -33,6 +46,11 @@ domain=$(jq -c -r .domain $jsonFile)
 ip_gw=$(jq -c -r .gw.ip $jsonFile)
 ip_vcsa=$(jq -c -r .sddc.vcenter.ip ${jsonFile})
 name_cb=$(jq -c -r .cloud_builder.name $jsonFile)
+cidr_mgmt=$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
+if [[ ${cidr_mgmt} =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.[0-9]{1,3}$ ]] ; then
+  cidr_mgmt_three_octets="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+fi
+ips_esxi=$(jq -c -r .esxi.ips $jsonFile | jq ". | map(\"$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"0/" -f1)\" + .)")
 #
 echo "Starting timestamp: $(date)" | tee -a ${log_file}
 source /nested-vcf/bash/govc/load_govc_external.sh
@@ -89,7 +107,9 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${domain}/${domain}/g" \
         -e "s/\${reverse_mgmt}/${reverse_mgmt}/g" \
         -e "s/\${reverse_vm_network}/${reverse_vm_network}/g" \
-        -e "s/\${ips}/${ips}/" \
+        -e "s/\${ips_esxi}/${ips_esxi}/" \
+        -e "s@\${directories}@$(jq -c -r '.directories' $jsonFile)@" \
+        -e "s/\${packages}/$(jq -c -r '.apt_packages' $jsonFile)/" \
         -e "s/\${basename_sddc}/${basename_sddc}/" \
         -e "s/\${basename_nsx_manager}/${basename_nsx_manager}/" \
         -e "s/\${ip_nsx_vip}/${ip_nsx_vip}/" \
@@ -107,6 +127,8 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${gw_name}/${gw_name}/" /nested-vcf/templates/options-gw.json.template | tee "/tmp/options-${gw_name}.json"
     #
     govc import.ova --options="/tmp/options-${gw_name}.json" -folder "${folder}" "/root/$(basename ${ova_url})" | tee -a ${log_file}
+    govc vm.change -vm "${folder}/${gw_name}" -c $(jq -c -r .gw.cpu $jsonFile) -m $(jq -c -r .gw.memory $jsonFile)
+    govc vm.disk.change -vm "${folder}/${gw_name}" -size $(jq -c -r .gw.disk $jsonFile)
     trunk1=$(jq -c -r .esxi.nics[0] $jsonFile)
     govc vm.network.add -vm "${folder}/${gw_name}" -net "${trunk1}" -net.adapter vmxnet3 | tee -a ${log_file}
     govc vm.power -on=true "${gw_name}" | tee -a ${log_file}
@@ -119,28 +141,44 @@ if [[ ${operation} == "apply" ]] ; then
     # ssh check
     retry=60 ; pause=10 ; attempt=1
     while true ; do
-      echo "attempt $attempt to verify ssh to gw ${gw_name}" | tee -a ${log_file}
+      echo "attempt $attempt to verify gw ${gw_name} is ready" | tee -a ${log_file}
       ssh -o StrictHostKeyChecking=no "ubuntu@${ip_gw}" -q >/dev/null 2>&1
       if [[ $? -eq 0 ]]; then
         echo "Gw ${gw_name} is reachable."
-        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': external-gw '${gw_name}' VM reachable"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-        for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
-        do
-          esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-          name_esxi="${basename_sddc}-esxi0${esxi}"
-          sed -e "s/\${esxi_ip}/${esxi_ip}/" \
-              -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
-          scp -o StrictHostKeyChecking=no /root/cert-esxi-$esxi.expect ubuntu@${ip_gw}:/home/ubuntu/cert-esxi-$esxi.expect
-          #
-          sed -e "s/\${esxi_ip}/${esxi_ip}/" \
-              -e "s@\${SLACK_WEBHOOK_URL}@${SLACK_WEBHOOK_URL}@" \
-              -e "s/\${esxi}/${esxi}/" \
-              -e "s/\${name_esxi}/${name_esxi}/" \
-              -e "s/\${basename_sddc}/${basename_sddc}/" \
-              -e "s/\${ESXI_PASSWORD}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_customization.sh.template | tee /root/esxi_customization-$esxi.sh > /dev/null
-          scp -o StrictHostKeyChecking=no /root/esxi_customization-$esxi.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_customization-$esxi.sh
-        done
-        break
+        #if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': external-gw '${gw_name}' VM reachable"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+        ssh -o StrictHostKeyChecking=no "ubuntu@${ip_gw}" "test -f /tmp/cloudInitDone.log" 2>/dev/null
+        if [[ $? -eq 0 ]]; then
+          echo "Gw ${gw_name} is ready." | tee -a ${log_file}
+          if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': external-gw '${gw_name}' VM reachable and configured"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+          scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/create_api_session.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/create_api_session.sh
+          scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/sddc_manager_api.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/sddc_manager_api.sh
+          scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/sddc_manager.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/sddc_manager.sh
+          scp -o StrictHostKeyChecking=no ${jsonFile} ubuntu@${ip_gw}:/home/ubuntu/json/
+          for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
+          do
+            ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
+            if [[ $(((${esxi}-1)/4+1)) -eq 1 ]] ; then
+              name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
+            fi
+            if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
+              name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+            fi
+            sed -e "s/\${ip_esxi}/${ip_esxi}/" \
+                -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
+            scp -o StrictHostKeyChecking=no /root/cert-esxi-$esxi.expect ubuntu@${ip_gw}:/home/ubuntu/cert-esxi-$esxi.expect
+            #
+            sed -e "s/\${ip_esxi}/${ip_esxi}/" \
+                -e "s@\${SLACK_WEBHOOK_URL}@${SLACK_WEBHOOK_URL}@" \
+                -e "s/\${esxi}/${esxi}/" \
+                -e "s/\${name_esxi}/${name_esxi}/" \
+                -e "s/\${basename_sddc}/${basename_sddc}/" \
+                -e "s/\${ESXI_PASSWORD}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_customization.sh.template | tee /root/esxi_customization-$esxi.sh > /dev/null
+            scp -o StrictHostKeyChecking=no /root/esxi_customization-$esxi.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_customization-$esxi.sh
+          done
+          break
+        else
+          echo "Gw ${gw_name}: cloud init is not finished." | tee -a ${log_file}
+        fi
       fi
       ((attempt++))
       if [ $attempt -eq $retry ]; then
@@ -172,21 +210,26 @@ if [[ ${operation} == "apply" ]] ; then
   echo "Modifying ${iso_build_location}/${boot_cfg_location}" | tee -a ${log_file}
   echo "kernelopt=runweasel ks=cdrom:/KS_CUST.CFG" | tee -a ${iso_build_location}/${boot_cfg_location}
   #
-  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
   do
-    name_esxi="${basename_sddc}-esxi0${esxi}"
+    if [[ $(((${esxi}-1)/4+1)) -eq 1 ]] ; then
+      name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
+    fi
+    if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
+      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+    fi
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_esxi}'")] | length') -eq 1 ]]; then
       echo "ERROR: unable to create nested ESXi ${name_esxi}: it already exists" | tee -a ${log_file}
     else
       net=$(jq -c -r .esxi.nics[0] $jsonFile)
-      esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+      ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
+      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${ip_esxi}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
       echo "Building custom ESXi ISO for ESXi${esxi}"
       rm -f ${iso_build_location}/ks_cust.cfg
       rm -f "${iso_location}-${esxi}.iso"
       sed -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" \
-          -e "s/\${ip_mgmt}/${esxi_ip}/" \
+          -e "s/\${ip_mgmt}/${ip_esxi}/" \
           -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
           -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
           -e "s/\${dns_servers}/${ip_gw}/" \
@@ -200,11 +243,19 @@ if [[ ${operation} == "apply" ]] ; then
       dc=$(jq -c -r .vsphere_underlay.datacenter $jsonFile)
       govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" test20240902/$(basename ${iso_location}-${esxi}.iso) > /dev/null
       if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': ISO ESXi '${esxi}' uploaded "}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
-      cpu=$(jq -c -r .esxi.cpu $jsonFile)
-      memory=$(jq -c -r .esxi.memory $jsonFile)
-      disk_os_size=$(jq -c -r .esxi.disk_os_size $jsonFile)
-      disk_flash_size=$(jq -c -r .esxi.disk_flash_size $jsonFile)
-      disk_capacity_size=$(jq -c -r .esxi.disk_capacity_size $jsonFile)
+      if [[ ${esxi} -gt 4 ]] ; then
+        cpu=$(jq -c -r .esxi.sizing_workload.cpu $jsonFile)
+        memory=$(jq -c -r .esxi.sizing_workload.memory $jsonFile)
+        disk_os_size=$(jq -c -r .esxi.sizing_workload.disk_os_size $jsonFile)
+        disk_flash_size=$(jq -c -r .esxi.sizing_workload.disk_flash_size $jsonFile)
+        disk_capacity_size=$(jq -c -r .esxi.sizing_workload.disk_capacity_size $jsonFile)
+      else
+        cpu=$(jq -c -r .esxi.sizing_mgmt.cpu $jsonFile)
+        memory=$(jq -c -r .esxi.sizing_mgmt.memory $jsonFile)
+        disk_os_size=$(jq -c -r .esxi.sizing_mgmt.disk_os_size $jsonFile)
+        disk_flash_size=$(jq -c -r .esxi.sizing_mgmt.disk_flash_size $jsonFile)
+        disk_capacity_size=$(jq -c -r .esxi.sizing_mgmt.disk_capacity_size $jsonFile)
+      fi
       names="${names} ${name_esxi}"
       govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder}" -on=false "${name_esxi}" > /dev/null
       govc device.cdrom.add -vm "${folder}/${name_esxi}" > /dev/null
@@ -226,12 +277,21 @@ if [[ ${operation} == "apply" ]] ; then
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Cloud Builder JSON file creation  - This should take 1 minute" | tee -a ${log_file}
   hostSpecs="[]"
-  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  hosts_validation_json="[]"
+  for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
   do
-    name_esxi="${basename_sddc}-esxi0${esxi}"
-    esxi_ip=$(echo ${ips} | jq -r .[$(expr ${esxi} - 1)])
-    hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${esxi_ip}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
-    hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
+    if [[ $(((${esxi}-1)/4+1)) -eq 1 ]] ; then
+      name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
+      ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
+      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${ip_esxi}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+      hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
+    fi
+    if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
+      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+      ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
+      host_validation_json='{"fqdn":"'${name_esxi}'.'${domain}'","username":"root","password" :"'${ESXI_PASSWORD}'","storageType":"VSAN","vvolStorageProtocolType":null,"networkPoolId" : "58d74167-ee80-4eb8-90d9-cdfb3c1cd9f3","networkPoolName":"engineering-networkpool","sshThumbprint":null,"sslThumbprint":null}'
+      hosts_validation_json=$(echo ${hosts_validation_json} | jq '. += ['${host_validation_json}']')
+    fi
   done
   nsxtManagers="[]"
   for nsx_count in $(seq 1 $(jq -c -r '.sddc.nsx.ips | length' $jsonFile))
@@ -322,9 +382,14 @@ if [[ ${operation} == "apply" ]] ; then
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "ESXI customization  - This should take 2 minutes per nested ESXi" | tee -a ${log_file}
-  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
   do
-    name_esxi="${basename_sddc}-esxi0${esxi}"
+    if [[ $(((${esxi}-1)/4+1)) -eq 1 ]] ; then
+      name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
+    fi
+    if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
+      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+    fi
     govc vm.power -s ${name_esxi} | tee -a ${log_file}
     sleep 30
     govc vm.power -on ${name_esxi} | tee -a ${log_file}
@@ -335,7 +400,7 @@ if [[ ${operation} == "apply" ]] ; then
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "SDDC creation - This should take hours..." | tee -a ${log_file}
-  if [[ $(jq -c -r .sddc.create $jsonFile) == "true" ]] ; then
+  if [[ $(jq -c -r .sddc.create_mgmt $jsonFile) == "true" ]] ; then
     validation_id=$(curl -s -k "https://${ip_cb}/v1/sddcs/validations" -u "admin:${CLOUD_BUILDER_PASSWORD}" -X POST -H 'Content-Type: application/json' -H 'Accept: application/json' -d @/root/${basename_sddc}_cb.json | jq -c -r .id)
     # validation json
     retry=60 ; pause=10 ; attempt=1
@@ -408,9 +473,14 @@ if [[ ${operation} == "destroy" ]] ; then
   #
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
-  for esxi in $(seq 1 $(echo ${ips} | jq -c -r '. | length'))
+  for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
   do
-    name_esxi="${basename_sddc}-esxi0${esxi}"
+    if [[ $(((${esxi}-1)/4+1)) -eq 1 ]] ; then
+      name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
+    fi
+    if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
+      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+    fi
     echo "Deletion of a nested ESXi ${name_esxi} on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_esxi}'")] | length') -eq 1 ]]; then
       govc vm.power -off=true "${folder}/${name_esxi}"

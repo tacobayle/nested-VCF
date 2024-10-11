@@ -1,6 +1,6 @@
 #!/usr/bin/expect
 set timeout 60
-spawn ssh -oStrictHostKeyChecking=no root@${esxi_ip}
+spawn ssh -oStrictHostKeyChecking=no root@${ip_esxi}
 expect "assword:"
 send "${nested_esxi_root_password}\r"
 expect ":~]"
