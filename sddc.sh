@@ -107,7 +107,7 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${domain}/${domain}/g" \
         -e "s/\${reverse_mgmt}/${reverse_mgmt}/g" \
         -e "s/\${reverse_vm_network}/${reverse_vm_network}/g" \
-        -e "s/\${ips_esxi}/${ips_esxi}/" \
+        -e "s/\${ips_esxi}/$(echo ${ips_esxi} | jq -c -r .)/" \
         -e "s@\${directories}@$(jq -c -r '.directories' $jsonFile)@" \
         -e "s/\${packages}/$(jq -c -r '.apt_packages' $jsonFile)/" \
         -e "s/\${basename_sddc}/${basename_sddc}/" \
@@ -118,10 +118,10 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${ip_vcsa}/${ip_vcsa}/" \
         -e "s@\${networks}@${networks}@" \
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
-        -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /tmp/${gw_name}_userdata.yaml > /dev/null
+        -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /root/${gw_name}_userdata.yaml > /dev/null
     #
     sed -e "s#\${public_key}#$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub | awk '{length=$0; print substr($0, 1, length-2)}')#" \
-        -e "s@\${base64_userdata}@$(base64 /tmp/${gw_name}_userdata.yaml -w 0)@" \
+        -e "s@\${base64_userdata}@$(base64 /root/${gw_name}_userdata.yaml -w 0)@" \
         -e "s/\${EXTERNAL_GW_PASSWORD}/${EXTERNAL_GW_PASSWORD}/" \
         -e "s@\${network_ref}@${network_ref}@" \
         -e "s/\${gw_name}/${gw_name}/" /nested-vcf/templates/options-gw.json.template | tee "/tmp/options-${gw_name}.json"
