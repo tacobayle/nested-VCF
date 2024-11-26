@@ -35,7 +35,7 @@ if [[ ${operation} != "apply" && ${operation} != "destroy" ]] ; then echo "ERROR
 rm -f ${log_file}
 #
 folder=$(jq -c -r .folder $jsonFile)
-gw_name=$(jq -c -r .gw.name $jsonFile)
+gw_name="$(jq -c -r .sddc.basename $jsonFile)-external-gw"
 basename=$(jq -c -r .esxi.basename $jsonFile)
 basename_sddc=$(jq -c -r .sddc.basename $jsonFile)
 basename_nsx_manager="-nsx-manager-"
