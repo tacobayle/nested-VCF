@@ -6,7 +6,7 @@ jsonFile=${1}
 ip_sddc_manager="$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.manager.ip ${jsonFile})"
 basename_sddc=$(jq -c -r .sddc.basename $jsonFile)
 SLACK_WEBHOOK_URL=$(jq -c -r .SLACK_WEBHOOK_URL $jsonFile)
-SDDC_MANAGER_PASSWORD=$(jq -c -r .SDDC_MANAGER_PASSWORD $jsonFile)
+SDDC_MANAGER_PASSWORD=$(jq -c -r .GENERIC_PASSWORD $jsonFile)
 DEPOT_USERNAME=$(jq -c -r .DEPOT_USERNAME $jsonFile)
 DEPOT_PASSWORD=$(jq -c -r .DEPOT_PASSWORD $jsonFile)
 ssoDomain=$(jq -c -r .sddc.vcenter.ssoDomain ${jsonFile})

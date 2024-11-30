@@ -20,7 +20,7 @@ jq -s '.[0] * .[1]' ${jsonFile_kube} ${jsonFile_local} | tee ${jsonFile}
 #
 variables_json=$(jq -c -r . $jsonFile)
 variables_json=$(echo ${variables_json} | jq '. += {"SLACK_WEBHOOK_URL": "'${SLACK_WEBHOOK_URL}'"}')
-variables_json=$(echo ${variables_json} | jq '. += {"SDDC_MANAGER_PASSWORD": "'${SDDC_MANAGER_PASSWORD}'"}')
+variables_json=$(echo ${variables_json} | jq '. += {"SDDC_MANAGER_PASSWORD": "'${GENERIC_PASSWORD}'"}')
 variables_json=$(echo ${variables_json} | jq '. += {"DEPOT_USERNAME": "'${DEPOT_USERNAME}'"}')
 variables_json=$(echo ${variables_json} | jq '. += {"DEPOT_PASSWORD": "'${DEPOT_PASSWORD}'"}')
 echo ${variables_json} | jq . | tee $jsonFile > /dev/null
@@ -108,7 +108,7 @@ if [[ ${operation} == "apply" ]] ; then
     for octet in "${octets[@]}"; do if [ $count -eq 3 ]; then break ; fi ; addr_vm_network=$octet"."$addr_vm_network ;((count++)) ; done
     reverse_vm_network=${addr_vm_network%.}
     basename=$(jq -c -r .esxi.basename $jsonFile)
-    sed -e "s/\${password}/${EXTERNAL_GW_PASSWORD}/" \
+    sed -e "s/\${password}/${GENERIC_PASSWORD}/" \
         -e "s/\${ip_gw}/${ip_gw}/" \
         -e "s/\${prefix}/${prefix}/" \
         -e "s/\${default_gw}/${default_gw}/" \
@@ -136,7 +136,7 @@ if [[ ${operation} == "apply" ]] ; then
     #
     sed -e "s#\${public_key}#$(awk '{printf "%s\\n", $0}' /root/.ssh/id_rsa.pub | awk '{length=$0; print substr($0, 1, length-2)}')#" \
         -e "s@\${base64_userdata}@$(base64 /root/${gw_name}_userdata.yaml -w 0)@" \
-        -e "s/\${EXTERNAL_GW_PASSWORD}/${EXTERNAL_GW_PASSWORD}/" \
+        -e "s/\${EXTERNAL_GW_PASSWORD}/${GENERIC_PASSWORD}/" \
         -e "s@\${network_ref}@${network_ref}@" \
         -e "s/\${gw_name}/${gw_name}/" /nested-vcf/templates/options-gw.json.template | tee "/tmp/options-${gw_name}.json"
     #
@@ -178,7 +178,7 @@ if [[ ${operation} == "apply" ]] ; then
               name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
             fi
             sed -e "s/\${ip_esxi}/${ip_esxi}/" \
-                -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
+                -e "s/\${nested_esxi_root_password}/${GENERIC_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
             scp -o StrictHostKeyChecking=no /root/cert-esxi-$esxi.expect ubuntu@${ip_gw}:/home/ubuntu/cert-esxi-$esxi.expect
             #
             sed -e "s/\${ip_esxi}/${ip_esxi}/" \
@@ -186,7 +186,7 @@ if [[ ${operation} == "apply" ]] ; then
                 -e "s/\${esxi}/${esxi}/" \
                 -e "s/\${name_esxi}/${name_esxi}/" \
                 -e "s/\${basename_sddc}/${basename_sddc}/" \
-                -e "s/\${ESXI_PASSWORD}/${ESXI_PASSWORD}/" /nested-vcf/templates/esxi_customization.sh.template | tee /root/esxi_customization-$esxi.sh > /dev/null
+                -e "s/\${ESXI_PASSWORD}/${GENERIC_PASSWORD}/" /nested-vcf/templates/esxi_customization.sh.template | tee /root/esxi_customization-$esxi.sh > /dev/null
             scp -o StrictHostKeyChecking=no /root/esxi_customization-$esxi.sh ubuntu@${ip_gw}:/home/ubuntu/esxi_customization-$esxi.sh
           done
           break
@@ -237,12 +237,12 @@ if [[ ${operation} == "apply" ]] ; then
     else
       net=$(jq -c -r .esxi.nics[0] $jsonFile)
       ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
-      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${ip_esxi}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${ip_esxi}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${GENERIC_PASSWORD}'"},"vSwitch":"vSwitch0"}'
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
       echo "Building custom ESXi ISO for ESXi${esxi}"
       rm -f ${iso_build_location}/ks_cust.cfg
       rm -f "${iso_location}-${esxi}.iso"
-      sed -e "s/\${nested_esxi_root_password}/${ESXI_PASSWORD}/" \
+      sed -e "s/\${nested_esxi_root_password}/${GENERIC_PASSWORD}/" \
           -e "s/\${ip_mgmt}/${ip_esxi}/" \
           -e "s/\${netmask}/$(ip_netmask_by_prefix $(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f2) "   ++++++")/" \
           -e "s/\${vlan_id}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
@@ -297,13 +297,13 @@ if [[ ${operation} == "apply" ]] ; then
     if [[ $(((${esxi}-1)/4+1)) -eq 1 ]] ; then
       name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
       ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
-      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${ip_esxi}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${ESXI_PASSWORD}'"},"vSwitch":"vSwitch0"}'
+      hostSpec='{"association":"'${folder}'-dc","ipAddressPrivate":{"ipAddress":"'${ip_esxi}'"},"hostname":"'${name_esxi}'","credentials":{"username":"root","password":"'${GENERIC_PASSWORD}'"},"vSwitch":"vSwitch0"}'
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
     fi
     if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
       name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
       ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
-      host_validation_json='{"fqdn":"'${name_esxi}'.'${domain}'","username":"root","password" :"'${ESXI_PASSWORD}'","storageType":"VSAN","vvolStorageProtocolType":null,"networkPoolId" : "58d74167-ee80-4eb8-90d9-cdfb3c1cd9f3","networkPoolName":"engineering-networkpool","sshThumbprint":null,"sslThumbprint":null}'
+      host_validation_json='{"fqdn":"'${name_esxi}'.'${domain}'","username":"root","password" :"'${GENERIC_PASSWORD}'","storageType":"VSAN","vvolStorageProtocolType":null,"networkPoolId" : "58d74167-ee80-4eb8-90d9-cdfb3c1cd9f3","networkPoolName":"engineering-networkpool","sshThumbprint":null,"sslThumbprint":null}'
       hosts_validation_json=$(echo ${hosts_validation_json} | jq '. += ['${host_validation_json}']')
     fi
   done
@@ -314,7 +314,7 @@ if [[ ${operation} == "apply" ]] ; then
     nsxtManagers=$(echo ${nsxtManagers} | jq '. += ['${nsxtManager}']')
   done
   sed -e "s/\${basename_sddc}/${basename_sddc}/" \
-      -e "s/\${SDDC_MANAGER_PASSWORD}/${SDDC_MANAGER_PASSWORD}/" \
+      -e "s/\${SDDC_MANAGER_PASSWORD}/${GENERIC_PASSWORD}/" \
       -e "s/\${ip_sddc_manager}/${ip_sddc_manager}/" \
       -e "s/\${basename_sddc}/${basename_sddc}/" \
       -e "s/\${ip_gw}/${ip_gw}/" \
@@ -337,7 +337,7 @@ if [[ ${operation} == "apply" ]] ; then
       -e "s/\${vlan_id_vm_mgmt}/$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
       -e "s/\${nsxtManagerSize}/$(jq -c -r .sddc.nsx.size ${jsonFile})/" \
       -e "s/\${nsxtManagers}/$(echo ${nsxtManagers} | jq -c -r .)/" \
-      -e "s/\${NSX_PASSWORD}/${NSX_PASSWORD}/" \
+      -e "s/\${NSX_PASSWORD}/${GENERIC_PASSWORD}/" \
       -e "s/\${ip_nsx_vip}/${ip_nsx_vip}/" \
       -e "s/\${basename_nsx_manager}/${basename_nsx_manager}/" \
       -e "s/\${transportVlanId}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
@@ -345,7 +345,7 @@ if [[ ${operation} == "apply" ]] ; then
       -e "s/\${nsx_pool_range_end}/${nsx_pool_range_end}/" \
       -e "s@\${nsx_subnet_cidr}@$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
       -e "s/\${nsx_subnet_gw}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')${ip_gw_last_octet}/" \
-      -e "s/\${VCENTER_PASSWORD}/${VCENTER_PASSWORD}/" \
+      -e "s/\${VCENTER_PASSWORD}/${GENERIC_PASSWORD}/" \
       -e "s/\${ssoDomain}/$(jq -c -r .sddc.vcenter.ssoDomain ${jsonFile})/" \
       -e "s/\${ip_vcsa}/${ip_vcsa}/" \
       -e "s/\${vmSize}/$(jq -c -r .sddc.vcenter.vmSize ${jsonFile})/" \

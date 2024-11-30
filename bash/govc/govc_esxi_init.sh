@@ -6,7 +6,7 @@ load_govc_esxi () {
   unset GOVC_DATASTORE
   unset GOVC_CLUSTER
   unset GOVC_INSECURE
-  export GOVC_PASSWORD=${ESXI_PASSWORD}
+  export GOVC_PASSWORD=${GENERIC_PASSWORD}
   export GOVC_INSECURE=true
   export GOVC_URL=${ip_esxi}
   export GOVC_USERNAME=root
