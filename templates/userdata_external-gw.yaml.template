@@ -53,6 +53,10 @@ write_files:
         apt install -y $package
       done
       #
+      # GOVC install
+      #
+      curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
+      #
       # Directories
       #
       directories='${directories}'
@@ -82,7 +86,6 @@ write_files:
       iptables-save | tee /etc/iptables/rules.v4
       sysctl -w net.ipv4.ip_forward=1
       echo "net.ipv4.ip_forward=1" | tee -a /etc/sysctl.conf
-      curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" | tar -C /usr/local/bin -xvzf - govc
       #
       # DNS config
       #

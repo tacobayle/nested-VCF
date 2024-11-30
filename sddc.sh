@@ -308,9 +308,9 @@ if [[ ${operation} == "apply" ]] ; then
     fi
   done
   nsxtManagers="[]"
-  for nsx_count in $(seq 1 $(jq -c -r '.sddc.nsx.ips | length' $jsonFile))
+  for nsx_count in $(seq 1 $(echo ${ips_nsx} | jq -c -r '. | length' $jsonFile))
   do
-    nsxtManager='{"hostname":"'${basename_sddc}''${basename_nsx_manager}''${nsx_count}'","ip":"'$(jq -c -r .sddc.nsx.ips[$(expr ${nsx_count} - 1)] $jsonFile)'"}'
+    nsxtManager='{"hostname":"'${basename_sddc}''${basename_nsx_manager}''${nsx_count}'","ip":"'$(echo ${ips_nsx} | jq -c -r '.['$(expr '${nsx_count}' - 1)']' $jsonFile)'"}'
     nsxtManagers=$(echo ${nsxtManagers} | jq '. += ['${nsxtManager}']')
   done
   sed -e "s/\${basename_sddc}/${basename_sddc}/" \
