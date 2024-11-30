@@ -79,7 +79,7 @@
       "nsxtAdminPassword": "${NSX_PASSWORD}",
       "nsxtAuditPassword": "${NSX_PASSWORD}",
       "vip": "${ip_nsx_vip}",
-      "vipFqdn": "${basename_sddc}${basename_nsx_manager}vip",
+      "vipFqdn": "${basename_sddc}-nsx",
       "nsxtLicense": null,
       "transportVlanId": "${transportVlanId}",
       "ipAddressPoolSpec": {
