@@ -39,18 +39,28 @@ gw_name="$(jq -c -r .sddc.basename $jsonFile)-external-gw"
 basename=$(jq -c -r .esxi.basename $jsonFile)
 basename_sddc=$(jq -c -r .sddc.basename $jsonFile)
 basename_nsx_manager="-nsx-manager-"
-ips_nsx=$(jq -c -r .sddc.nsx.ips $jsonFile)
-ip_nsx_vip=$(jq -c -r .sddc.nsx.vip ${jsonFile})
-ip_sddc_manager=$(jq -c -r .sddc.manager.ip ${jsonFile})
+basename_avi_ctrl="-avi-ctrl-"
+ip_gw_last_octet="1"
+ips_nsx=$(jq -c -r .sddc.nsx.ips $jsonFile | jq ". | map(\"$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')\" + (. | tostring))")
+ip_nsx_vip="$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.nsx.vip ${jsonFile})"
+ips_avi=$(jq -c -r .sddc.avi.ips $jsonFile | jq ". | map(\"$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')\" + (. | tostring))")
+ip_avi_vip="$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.avi.vip ${jsonFile})"
+ip_sddc_manager="$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.manager.ip ${jsonFile})"
+nsx_pool_range_start="$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f1 -d'-')"
+nsx_pool_range_end="$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f2 -d'-')"
+starting_ip_vsan="$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f1 -d'-')"
+ending_ip_vsan="$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f2 -d'-')"
+starting_ip_vmotion="$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f1 -d'-')"
+ending_ip_vmotion="$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f2 -d'-')"
 domain=$(jq -c -r .domain $jsonFile)
 ip_gw=$(jq -c -r .gw.ip $jsonFile)
-ip_vcsa=$(jq -c -r .sddc.vcenter.ip ${jsonFile})
+ip_vcsa="$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')$(jq -c -r .sddc.vcenter.ip ${jsonFile})"
 name_cb=$(jq -c -r .cloud_builder.name $jsonFile)
 cidr_mgmt=$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"/" -f1)
 if [[ ${cidr_mgmt} =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.[0-9]{1,3}$ ]] ; then
   cidr_mgmt_three_octets="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
 fi
-ips_esxi=$(jq -c -r .esxi.ips $jsonFile | jq ". | map(\"$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | cut -d"0/" -f1)\" + (. | tostring))")
+ips_esxi=$(jq -c -r .esxi.ips $jsonFile | jq ". | map(\"$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')\" + (. | tostring))")
 #
 echo "Starting timestamp: $(date)" | tee -a ${log_file}
 source /nested-vcf/bash/govc/load_govc_external.sh
@@ -112,11 +122,15 @@ if [[ ${operation} == "apply" ]] ; then
         -e "s/\${packages}/$(jq -c -r '.apt_packages' $jsonFile)/" \
         -e "s/\${basename_sddc}/${basename_sddc}/" \
         -e "s/\${basename_nsx_manager}/${basename_nsx_manager}/" \
+        -e "s/\${basename_avi_ctrl}/${basename_avi_ctrl}/" \
         -e "s/\${ip_nsx_vip}/${ip_nsx_vip}/" \
-        -e "s/\${ips_nsx}/${ips_nsx}/" \
+        -e "s/\${ips_nsx}/$(echo ${ips_nsx} | jq -c -r .)/" \
+        -e "s/\${ip_avi_vip}/${ip_avi_vip}/" \
+        -e "s/\${ips_avi}/$(echo ${ips_avi} | jq -c -r .)/" \
         -e "s/\${ip_sddc_manager}/${ip_sddc_manager}/" \
         -e "s/\${ip_vcsa}/${ip_vcsa}/" \
         -e "s@\${networks}@${networks}@" \
+        -e "s@\${ip_gw_last_octet}@${ip_gw_last_octet}@" \
         -e "s/\${forwarders_bind}/${forwarders_bind}/" \
         -e "s/\${hostname}/${gw_name}/" /nested-vcf/templates/userdata_external-gw.yaml.template | tee /root/${gw_name}_userdata.yaml > /dev/null
     #
@@ -236,7 +250,7 @@ if [[ ${operation} == "apply" ]] ; then
           -e "s/\${ntp_servers}/${ip_gw}/" \
           -e "s/\${hostname}/${name_esxi}/" \
           -e "s/\${domain}/${domain}/" \
-          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" /nested-vcf/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
+          -e "s/\${gateway}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')${ip_gw_last_octet}/" /nested-vcf/templates/ks_cust.cfg.template | tee ${iso_build_location}/ks_cust.cfg > /dev/null
       echo "Building new ISO for ESXi ${esxi}"
       xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
       ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
@@ -306,20 +320,20 @@ if [[ ${operation} == "apply" ]] ; then
       -e "s/\${ip_gw}/${ip_gw}/" \
       -e "s/\${domain}/${domain}/" \
       -e "s@\${subnet_mgmt}@$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
-      -e "s/\${gw_mgmt}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+      -e "s/\${gw_mgmt}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')${ip_gw_last_octet}/" \
       -e "s/\${vlan_id_mgmt}/$(jq -c -r --arg arg "MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
       -e "s@\${subnet_vmotion}@$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
-      -e "s/\${gw_vmotion}/$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+      -e "s/\${gw_vmotion}/$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')${ip_gw_last_octet}/" \
       -e "s/\${vlan_id_vmotion}/$(jq -c -r --arg arg "VMOTION" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
-      -e "s/\${ending_ip_vmotion}/$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f2 -d'-')/" \
-      -e "s/\${starting_ip_vmotion}/$(jq -c -r .sddc.vcenter.vmotionPool ${jsonFile}| cut -f1 -d'-')/" \
+      -e "s/\${ending_ip_vmotion}/${ending_ip_vmotion}/" \
+      -e "s/\${starting_ip_vmotion}/${starting_ip_vmotion}/" \
       -e "s@\${subnet_vsan}@$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
-      -e "s/\${gw_vsan}/$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+      -e "s/\${gw_vsan}/$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')${ip_gw_last_octet}/" \
       -e "s/\${vlan_id_vsan}/$(jq -c -r --arg arg "VSAN" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
-      -e "s/\${ending_ip_vsan}/$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f2 -d'-')/" \
-      -e "s/\${starting_ip_vsan}/$(jq -c -r .sddc.vcenter.vsanPool ${jsonFile}| cut -f1 -d'-')/" \
+      -e "s/\${ending_ip_vsan}/${ending_ip_vsan}/" \
+      -e "s/\${starting_ip_vsan}/${starting_ip_vsan}/" \
       -e "s@\${subnet_vm_mgmt}@$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
-      -e "s/\${gw_vm_mgmt}/$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+      -e "s/\${gw_vm_mgmt}/$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')${ip_gw_last_octet}/" \
       -e "s/\${vlan_id_vm_mgmt}/$(jq -c -r --arg arg "VM_MANAGEMENT" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
       -e "s/\${nsxtManagerSize}/$(jq -c -r .sddc.nsx.size ${jsonFile})/" \
       -e "s/\${nsxtManagers}/$(echo ${nsxtManagers} | jq -c -r .)/" \
@@ -327,10 +341,10 @@ if [[ ${operation} == "apply" ]] ; then
       -e "s/\${ip_nsx_vip}/${ip_nsx_vip}/" \
       -e "s/\${basename_nsx_manager}/${basename_nsx_manager}/" \
       -e "s/\${transportVlanId}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).vlan_id' $jsonFile)/" \
-      -e "s/\${nsx_pool_range_start}/$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f1 -d'-')/" \
-      -e "s/\${nsx_pool_range_end}/$(jq -c -r .sddc.nsx.vtep_pool ${jsonFile}| cut -f2 -d'-')/" \
+      -e "s/\${nsx_pool_range_start}/${nsx_pool_range_start}/" \
+      -e "s/\${nsx_pool_range_end}/${nsx_pool_range_end}/" \
       -e "s@\${nsx_subnet_cidr}@$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile)@" \
-      -e "s/\${nsx_subnet_gw}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).gw' $jsonFile)/" \
+      -e "s/\${nsx_subnet_gw}/$(jq -c -r --arg arg "HOST_OVERLAY" '.sddc.vcenter.networks[] | select( .type == $arg).cidr' $jsonFile | awk -F'0/' '{print $1}')${ip_gw_last_octet}/" \
       -e "s/\${VCENTER_PASSWORD}/${VCENTER_PASSWORD}/" \
       -e "s/\${ssoDomain}/$(jq -c -r .sddc.vcenter.ssoDomain ${jsonFile})/" \
       -e "s/\${ip_vcsa}/${ip_vcsa}/" \
