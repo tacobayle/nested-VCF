@@ -350,6 +350,13 @@ if [[ ${operation} == "apply" ]] ; then
       -e "s/\${ip_vcsa}/${ip_vcsa}/" \
       -e "s/\${vmSize}/$(jq -c -r .sddc.vcenter.vmSize ${jsonFile})/" \
       -e "s/\${hostSpecs}/$(echo ${hostSpecs} | jq -c -r .)/" /nested-vcf/templates/sddc_cb.json.template | tee /root/${basename_sddc}_cb.json > /dev/null
+  sed -e "s/\${basename_sddc}/${basename_sddc}/" /nested-vcf/templates/index.html.template | tee /root/index.html > /dev/null
+  scp -o StrictHostKeyChecking=no /root/index.html ubuntu@${ip_gw}:/home/ubuntu/index.html
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo mv /home/ubuntu/index.html /var/www/html/index.html" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/index.html" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /var/www/html/index.html" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo cat /var/lib/bind/db.${domain} | grep avi | tee /var/www/html/avi.html" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo cat /var/lib/bind/db.${domain} | grep workload | tee /var/www/html/esxi.html" | tee -a ${log_file}
   scp -o StrictHostKeyChecking=no /root/${basename_sddc}_cb.json ubuntu@${ip_gw}:/home/ubuntu/${basename_sddc}_cb.json
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}

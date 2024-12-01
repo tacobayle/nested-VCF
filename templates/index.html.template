@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VCF Deployment Details</title>
+</head>
+<body>
+<h1>VCF Deployment Details</h1>
+<ul>
+    <li><a href="${basename_sddc}_cb.json">SDDC Cloud Builder JSON File</a></li>
+    <li><a href="avi.html">Avi details</a></li>
+    <li><a href="esxi.html">Uncommissioned ESXi Hosts</a></li>
+</ul>
+</body>
+</html>
