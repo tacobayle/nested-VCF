@@ -50,6 +50,3 @@ do
   sleep ${pause}
   ((attempt++))
 done
-#
-#
-#

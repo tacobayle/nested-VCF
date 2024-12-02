@@ -20,7 +20,7 @@ jq -s '.[0] * .[1]' ${jsonFile_kube} ${jsonFile_local} | tee ${jsonFile}
 #
 variables_json=$(jq -c -r . $jsonFile)
 variables_json=$(echo ${variables_json} | jq '. += {"SLACK_WEBHOOK_URL": "'${SLACK_WEBHOOK_URL}'"}')
-variables_json=$(echo ${variables_json} | jq '. += {"SDDC_MANAGER_PASSWORD": "'${GENERIC_PASSWORD}'"}')
+variables_json=$(echo ${variables_json} | jq '. += {"GENERIC_PASSWORD": "'${GENERIC_PASSWORD}'"}')
 variables_json=$(echo ${variables_json} | jq '. += {"DEPOT_USERNAME": "'${DEPOT_USERNAME}'"}')
 variables_json=$(echo ${variables_json} | jq '. += {"DEPOT_PASSWORD": "'${DEPOT_PASSWORD}'"}')
 echo ${variables_json} | jq . | tee $jsonFile > /dev/null
@@ -166,7 +166,8 @@ if [[ ${operation} == "apply" ]] ; then
           if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': external-gw '${gw_name}' VM reachable and configured"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
           scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/create_api_session.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/create_api_session.sh
           scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/sddc_manager_api.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/sddc_manager_api.sh
-          scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/sddc_manager.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/sddc_manager.sh
+          scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/sddc_manager_depot.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/sddc_manager_depot.sh
+          scp -o StrictHostKeyChecking=no /nested-vcf/bash/sddc_manager/sddc_manager_commission_host.sh ubuntu@${ip_gw}:/home/ubuntu/sddc_manager/sddc_manager_commission_host.sh
           scp -o StrictHostKeyChecking=no ${jsonFile} ubuntu@${ip_gw}:/home/ubuntu/json/
           for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
           do
@@ -361,7 +362,7 @@ if [[ ${operation} == "apply" ]] ; then
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
-  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': json for cloud builder generated and available at http://'${ip_gw}'/'${basename_sddc}'_cb.json"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+  if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': Details for cloud deployment available at http://'${ip_gw}'/"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
   echo "Creation of a cloud builder VM underlay infrastructure - This should take 10 minutes" | tee -a ${log_file}
@@ -475,6 +476,17 @@ if [[ ${operation} == "apply" ]] ; then
         echo "SDDC ${sddc_id} creation not finished after $attempt attempt of ${pause} seconds" | tee -a ${log_file}
         if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC '${sddc_id}' Creation not finished after '${attempt}' attempts of '${pause}' seconds"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
         exit
+      fi
+    done
+  fi
+  echo '------------------------------------------------------------' | tee -a ${log_file}
+  echo "ESXi host commissioning - This should take minutes..." | tee -a ${log_file}
+  if [[ $(jq -c -r .sddc.create_wld $jsonFile) == "true" ]] ; then
+    for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
+    do
+      if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
+        esxi_fqdn="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4)).${domain}"
+        ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/home/ubuntu/sddc_manager/sddc_manager_commission_host.sh /home/ubuntu/json/${jsonFile} ${esxi_fqdn}" | tee -a ${log_file}
       fi
     done
   fi
