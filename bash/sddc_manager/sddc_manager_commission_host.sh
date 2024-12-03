@@ -38,22 +38,22 @@ validation_id=$(echo $response_body | jq -c -r .id)
 #
 # Wait for validation to be done
 #
-retry=10
-pause=30
-attempt=1
+retry_local=10
+pause_local=30
+attempt_local=1
 while true ; do
-  echo "attempt ${attempt} to get host validation spec"
+  echo "attempt ${attempt_local} to get host validation spec"
   sddc_manager_api 3 2 GET '' ${ip_sddc_manager} v1/hosts/validations/${validation_id} $(jq -c -r .accessToken /tmp/token.json)
   if [[ $(echo $response_body | jq -c -r .executionStatus) == "COMPLETED" && $(echo $response_body | jq -c -r .resultStatus) == "SUCCEEDED" ]]; then
-    echo "host validation .executionStatus is COMPLETED and .resultStatus is SUCCEEDED after ${attempt} attempts of ${pause} seconds"
+    echo "host validation .executionStatus is COMPLETED and .resultStatus is SUCCEEDED after ${attempt_local} attempts of ${pause_local} seconds"
     break 2
   fi
-  ((attempt++))
-  if [ ${attempt} -eq ${retry} ]; then
-    echo "Unable to get host validation after ${attempt} attempts of ${pause} seconds"
+  ((attempt_local++))
+  if [ ${attempt_local} -eq ${retry_local} ]; then
+    echo "Unable to get host validation after ${attempt_local} attempts of ${pause_local} seconds"
     exit
   fi
-  sleep ${pause}
+  sleep ${pause_local}
 done
 #
 # Commission host
@@ -63,20 +63,20 @@ task_id=$(echo $response_body | jq -c -r .id)
 #
 # Wait for HOST ready
 #
-retry=10
-pause=30
-attempt=1
+retry_local=10
+pause_local=30
+attempt_local=1
 while true ; do
-  echo "attempt ${attempt} to get host ready"
+  echo "attempt ${attempt_local} to get host ready"
   sddc_manager_api 3 2 GET '' ${ip_sddc_manager} v1/tasks/${task_id} $(jq -c -r .accessToken /tmp/token.json)
   if [[ $(echo $response_body | jq -c -r .status) == "Successful" ]]; then
-    echo "host commissioning .status is Successful after ${attempt} attempts of ${pause} seconds"
+    echo "host commissioning .status is Successful after ${attempt_local} attempts of ${pause_local} seconds"
     break 2
   fi
-  ((attempt++))
-  if [ ${attempt} -eq ${retry} ]; then
-    echo "Unable to get host commissioned after ${attempt} attempts of ${pause} seconds"
+  ((attempt_local++))
+  if [ ${attempt_local} -eq ${retry_local} ]; then
+    echo "Unable to get host commissioned after ${attempt_local} attempts of ${pause_local} seconds"
     exit
   fi
-  sleep ${pause}
+  sleep ${pause_local}
 done
