@@ -488,7 +488,8 @@ if [[ ${operation} == "apply" ]] ; then
     do
       if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
         esxi_fqdn="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4)).${domain}"
-        ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/home/ubuntu/sddc_manager/sddc_manager_commission_host.sh /home/ubuntu/json/${jsonFile} ${esxi_fqdn}" | tee -a ${log_file}
+        echo "ESXi host commissioning of ESXi host: ${esxi_fqdn}" | tee -a ${log_file}
+        ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/home/ubuntu/sddc_manager/sddc_manager_commission_host.sh /home/ubuntu/json/$(basename ${jsonFile}) ${esxi_fqdn}" | tee -a ${log_file}
       fi
     done
   fi
