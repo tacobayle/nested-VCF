@@ -357,9 +357,9 @@ if [[ ${operation} == "apply" ]] ; then
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/index.html" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /var/www/html/index.html" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo cat /var/lib/bind/db.${domain} | grep avi | sudo tee /var/www/html/avi_raw.html" | tee -a ${log_file}
-  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "while read -r line; do echo \"$line<br>\" ; done < /var/www/html/avi_raw.html > /var/www/html/avi.html" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "while read -r line; do echo \"$line<br>\" ; done < /var/www/html/avi_raw.html | sudo tee /var/www/html/avi.html" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo cat /var/lib/bind/db.${domain} | grep workload | sudo tee /var/www/html/esxi_raw.html" | tee -a ${log_file}
-  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "while read -r line; do echo \"$line<br>\" ; done < /var/www/html/esxi_raw.html > /var/www/html/esxi.html" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "while read -r line; do echo \"$line<br>\" ; done < /var/www/html/esxi_raw.html | sudo tee /var/www/html/esxi.html" | tee -a ${log_file}
   scp -o StrictHostKeyChecking=no /root/${basename_sddc}_cb.json ubuntu@${ip_gw}:/home/ubuntu/${basename_sddc}_cb.json
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
