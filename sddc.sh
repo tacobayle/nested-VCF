@@ -176,7 +176,7 @@ if [[ ${operation} == "apply" ]] ; then
               name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
             fi
             if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
-              name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+              name_esxi="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
             fi
             sed -e "s/\${ip_esxi}/${ip_esxi}/" \
                 -e "s/\${nested_esxi_root_password}/${GENERIC_PASSWORD}/" /nested-vcf/templates/esxi_cert.expect.template | tee /root/cert-esxi-$esxi.expect > /dev/null
@@ -231,7 +231,7 @@ if [[ ${operation} == "apply" ]] ; then
       name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
     fi
     if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
-      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+      name_esxi="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
     fi
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_esxi}'")] | length') -eq 1 ]]; then
       echo "ERROR: unable to create nested ESXi ${name_esxi}: it already exists" | tee -a ${log_file}
@@ -256,7 +256,7 @@ if [[ ${operation} == "apply" ]] ; then
       xorrisofs -relaxed-filenames -J -R -o "${iso_location}-${esxi}.iso" -b isolinux.bin -c boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e efiboot.img -no-emul-boot ${iso_build_location}
       ds=$(jq -c -r .vsphere_underlay.datastore $jsonFile)
       dc=$(jq -c -r .vsphere_underlay.datacenter $jsonFile)
-      govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" test20240902/$(basename ${iso_location}-${esxi}.iso) > /dev/null
+      govc datastore.upload  --ds=${ds} --dc=${dc} "${iso_location}-${esxi}.iso" nested-vcf/$(basename ${iso_location}-${esxi}.iso) > /dev/null
       if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': ISO ESXi '${esxi}' uploaded "}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
       if [[ ${esxi} -gt 4 ]] ; then
         cpu=$(jq -c -r .esxi.sizing_workload.cpu $jsonFile)
@@ -274,7 +274,7 @@ if [[ ${operation} == "apply" ]] ; then
       names="${names} ${name_esxi}"
       govc vm.create -c ${cpu} -m ${memory} -disk ${disk_os_size} -disk.controller pvscsi -net ${net} -g vmkernel65Guest -net.adapter vmxnet3 -firmware efi -folder "${folder}" -on=false "${name_esxi}" > /dev/null
       govc device.cdrom.add -vm "${folder}/${name_esxi}" > /dev/null
-      govc device.cdrom.insert -vm "${folder}/${name_esxi}" -device cdrom-3000 test20240902/$(basename ${iso_location}-${esxi}.iso) > /dev/null
+      govc device.cdrom.insert -vm "${folder}/${name_esxi}" -device cdrom-3000 nested-vcf/$(basename ${iso_location}-${esxi}.iso) > /dev/null
       govc vm.change -vm "${folder}/${name_esxi}" -nested-hv-enabled > /dev/null
       govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk1 -size ${disk_flash_size} > /dev/null
       govc vm.disk.create -vm "${folder}/${name_esxi}" -name ${name_esxi}/disk2 -size ${disk_capacity_size} > /dev/null
@@ -302,7 +302,7 @@ if [[ ${operation} == "apply" ]] ; then
       hostSpecs=$(echo ${hostSpecs} | jq '. += ['${hostSpec}']')
     fi
     if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
-      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+      name_esxi="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
       ip_esxi="$(echo ${ips_esxi} | jq -r .[$(expr ${esxi} - 1)])"
       host_validation_json='{"fqdn":"'${name_esxi}'.'${domain}'","username":"root","password" :"'${GENERIC_PASSWORD}'","storageType":"VSAN","vvolStorageProtocolType":null,"networkPoolId" : "58d74167-ee80-4eb8-90d9-cdfb3c1cd9f3","networkPoolName":"engineering-networkpool","sshThumbprint":null,"sslThumbprint":null}'
       hosts_validation_json=$(echo ${hosts_validation_json} | jq '. += ['${host_validation_json}']')
@@ -358,7 +358,7 @@ if [[ ${operation} == "apply" ]] ; then
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chgrp root /var/www/html/index.html" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo cat /var/lib/bind/db.${domain} | grep avi | sudo tee /var/www/html/avi_raw.html" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "while read -r line; do echo \"$line<br>\" ; done < /var/www/html/avi_raw.html | sudo tee /var/www/html/avi.html" | tee -a ${log_file}
-  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo cat /var/lib/bind/db.${domain} | grep workload | sudo tee /var/www/html/esxi_raw.html" | tee -a ${log_file}
+  ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo cat /var/lib/bind/db.${domain} | grep wld | sudo tee /var/www/html/esxi_raw.html" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "while read -r line; do echo \"$line<br>\" ; done < /var/www/html/esxi_raw.html | sudo tee /var/www/html/esxi.html" | tee -a ${log_file}
   scp -o StrictHostKeyChecking=no /root/${basename_sddc}_cb.json ubuntu@${ip_gw}:/home/ubuntu/${basename_sddc}_cb.json
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo mv /home/ubuntu/${basename_sddc}_cb.json /var/www/html/${basename_sddc}_cb.json" | tee -a ${log_file}
@@ -412,7 +412,7 @@ if [[ ${operation} == "apply" ]] ; then
       name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
     fi
     if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
-      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+      name_esxi="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
     fi
     govc vm.power -s ${name_esxi} | tee -a ${log_file}
     sleep 30
@@ -487,7 +487,7 @@ if [[ ${operation} == "apply" ]] ; then
     for esxi in $(seq 1 $(echo ${ips_esxi} | jq -c -r '. | length'))
     do
       if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
-        esxi_fqdn="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4)).${domain}"
+        esxi_fqdn="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4)).${domain}"
         echo "ESXi host commissioning of ESXi host: ${esxi_fqdn}" | tee -a ${log_file}
         ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/home/ubuntu/sddc_manager/sddc_manager_commission_host.sh /home/ubuntu/json/$(basename ${jsonFile}) ${esxi_fqdn}" | tee -a ${log_file}
       fi
@@ -515,7 +515,7 @@ if [[ ${operation} == "destroy" ]] ; then
       name_esxi="${basename_sddc}-mgmt-esxi0${esxi}"
     fi
     if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
-      name_esxi="${basename_sddc}-workload0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
+      name_esxi="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
     fi
     echo "Deletion of a nested ESXi ${name_esxi} on the underlay infrastructure - This should take less than a minute" | tee -a ${log_file}
     if [[ $(govc find -json vm | jq '[.[] | select(. == "vm/'${folder}'/'${name_esxi}'")] | length') -eq 1 ]]; then
