@@ -7,8 +7,9 @@
 <h1>VCF Deployment Details</h1>
 <ul>
     <li><a href="${basename_sddc}_cb.json">SDDC Cloud Builder JSON File</a></li>
-    <li><a href="avi.html">Avi details</a></li>
-    <li><a href="esxi.html">Additional ESXi Hosts</a></li>
+    <li><a href="forward.html">Initial Forward Zone - this is not refreshed</a></li>
+    <li><a href="ptr_mgmt.html">Initial PTR MANAGEMENT network - this is not refreshed - this includes ESXi hosts</a></li>
+    <li><a href="ptr_vm_network.html">Initial PTR VM_MANAGEMENT network - this is not refreshed - this includes NSX and Avi</a></li>
 </ul>
 </body>
 </html>

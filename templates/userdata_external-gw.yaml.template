@@ -252,8 +252,14 @@ write_files:
       echo "allow 0.0.0.0/0" | tee -a /etc/chrony/chrony.conf
       systemctl restart chrony.service
       #
-      # HTTP config
+      # HTTP config (copy DNS zones)
       #
+      cp /var/lib/bind/db.${domain} /var/www/html/forward_raw.html
+      while read -r line; do echo "$line<br>" ; done < /var/www/html/forward_raw.html | sudo tee /var/www/html/forward.html
+      cp /var/lib/bind/db.${reverse_mgmt} /var/www/html/ptr_mgmt_network_raw.html
+      while read -r line; do echo "$line<br>" ; done < /var/www/html/ptr_mgmt_network_raw.html | sudo tee /var/www/html/ptr_mgmt.html
+      cp /var/lib/bind/db.${reverse_vm_network} /var/www/html/ptr_vm_network_raw.html
+      while read -r line; do echo "$line<br>" ; done < /var/www/html/ptr_vm_network_raw.html | sudo tee /var/www/html/ptr_vm_network.html
       #
       #
       # Patching DNS to localhost
