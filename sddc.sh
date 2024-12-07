@@ -419,7 +419,9 @@ if [[ ${operation} == "apply" ]] ; then
     govc vm.power -on ${name_esxi} | tee -a ${log_file}
     ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_customization-$esxi.sh"
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': nested ESXi '${name_esxi}' ready"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+    govc datastore.rm nested-vcf/$(basename ${iso_location}-${esxi}.iso) > /dev/null
   done
+  govc datastore.rm nested-vcf
   #
   #
   echo '------------------------------------------------------------' | tee -a ${log_file}
