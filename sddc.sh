@@ -351,7 +351,8 @@ if [[ ${operation} == "apply" ]] ; then
       -e "s/\${ip_vcsa}/${ip_vcsa}/" \
       -e "s/\${vmSize}/$(jq -c -r .sddc.vcenter.vmSize ${jsonFile})/" \
       -e "s/\${hostSpecs}/$(echo ${hostSpecs} | jq -c -r .)/" /nested-vcf/templates/sddc_cb.json.template | tee /root/${basename_sddc}_cb.json > /dev/null
-  sed -e "s/\${basename_sddc}/${basename_sddc}/" /nested-vcf/templates/index.html.template | tee /root/index.html > /dev/null
+  sed -e "s/\${basename_sddc}/${basename_sddc}/" \
+      -e "s/\${domain}/${domain}/" /nested-vcf/templates/index.html.template | tee /root/index.html > /dev/null
   scp -o StrictHostKeyChecking=no /root/index.html ubuntu@${ip_gw}:/home/ubuntu/index.html
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "sudo mv /home/ubuntu/index.html /var/www/html/index.html" | tee -a ${log_file}
   ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "chown root /var/www/html/index.html" | tee -a ${log_file}
@@ -414,11 +415,15 @@ if [[ ${operation} == "apply" ]] ; then
     if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
       name_esxi="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4))"
     fi
+
     govc vm.power -s ${name_esxi} | tee -a ${log_file}
     sleep 30
     govc vm.power -on ${name_esxi} | tee -a ${log_file}
     ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/bin/bash /home/ubuntu/esxi_customization-$esxi.sh"
     if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': nested ESXi '${name_esxi}' ready"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
+    govc device.cdrom.eject -vm "${folder}/${name_esxi}" -device cdrom-3000 nested-vcf/$(basename ${iso_location}-${esxi}.iso) > /dev/null
+    sleep 8
+    govc device.cdrom.eject -vm "${folder}/${name_esxi}" -device cdrom-3000 nested-vcf/$(basename ${iso_location}-${esxi}.iso) > /dev/null
     govc datastore.rm nested-vcf/$(basename ${iso_location}-${esxi}.iso) > /dev/null
   done
   govc datastore.rm nested-vcf
@@ -490,11 +495,13 @@ if [[ ${operation} == "apply" ]] ; then
     do
       if [[ $(((${esxi}-1)/4+1)) -gt 1 ]] ; then
         esxi_fqdn="${basename_sddc}-wld0$(((${esxi}-1)/4))-esxi0$((${esxi}-(((${esxi}-1)/4))*4)).${domain}"
-        echo "ESXi host commissioning of ESXi host: ${esxi_fqdn}" | tee -a ${log_file}
         ssh -o StrictHostKeyChecking=no -t ubuntu@${ip_gw} "/home/ubuntu/sddc_manager/sddc_manager_commission_host.sh /home/ubuntu/json/$(basename ${jsonFile}) ${esxi_fqdn}" | tee -a ${log_file}
+        echo "ESXi host commissioning of ESXi host: ${esxi_fqdn}" | tee -a ${log_file}
+        if [ -z "${SLACK_WEBHOOK_URL}" ] ; then echo "ignoring slack update" ; else curl -X POST -H 'Content-type: application/json' --data '{"text":"'$(date "+%Y-%m-%d,%H:%M:%S")', nested-'${basename_sddc}': SDDC '${sddc_id}' ESXi host commissioning of ESXi host: '${esxi_fqdn}'"}' ${SLACK_WEBHOOK_URL} >/dev/null 2>&1; fi
       fi
     done
   fi
+  govc vm.power -off=true "${name_cb}" >> /dev/null 2>&1
 fi
 #
 #

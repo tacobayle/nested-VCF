@@ -1,10 +1,10 @@
 # to do list
 - checking that the network exists before creating a VM
-- cloud builder being shutting down after
 - last ESXi commissioning is not working
 
 # to test
-- remove the nested vcf folder when the ESXI are ready
+- remove the nested vcf folder when the ESXI are ready (20241207_esxi_iso_removal)
+- cloud builder being shutting down after sddc creation (20241207_esxi_iso_removal)
 
 # tested
 - web deployment details (20241206)
