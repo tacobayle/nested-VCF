@@ -6,7 +6,7 @@
 <body>
 <h1>VCF Deployment Details</h1>
 <ul>
-    <li><a href="https://${basename_sddc}-sddc-manager.${domain}" target="_blank">SDDC Manager Link</a></li>
+    <li><a href="https://${basename_sddc}-sddc-manager.${domain}" target="_blank">SDDC Manager</a></li>
     <li><a href="${basename_sddc}_cb.json" target="_blank">SDDC Cloud Builder JSON File</a></li>
     <li><a href="forward.html" target="_blank">Initial Forward Zone - this is not refreshed</a></li>
     <li><a href="ptr_mgmt.html" target="_blank">Initial PTR MANAGEMENT network - this is not refreshed - this includes ESXi hosts</a></li>
