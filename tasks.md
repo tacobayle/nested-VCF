@@ -2,6 +2,9 @@
 - checking that the network exists before creating a VM
 
 # to test
+- adding link to esxi (mgmt only)
+- adding link to vsphere
+- adding link to nsx
 
 # tested
 - last ESXi commissioning is not working (20241207_esxi_iso_removal)
